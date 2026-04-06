@@ -1,23 +1,12 @@
 """
-app.py
-------
-
-Flask web application for tracking tuberculosis (TB) medication adherence.
+app.py — TB Medication Tracker
 
 Features:
-- Register patients and auto-generate medication schedules based on weight
-- Record when doses are taken (button or QR scan)
-- Calendar view with weekday alignment and month navigation
-- Staff dashboard with adherence statistics across all patients
-- Today's dose quick-confirm view
-- Overdue dose indicators
-- QR codes for individual doses
-
-Dependencies:
-    pip install flask flask_sqlalchemy qrcode pillow
-
-Run:
-    python app.py
+- 1 QR code per patient (scans to patient's dose page)
+- Medication with mg dosages (INH 100mg, Rifampicin 300/450mg, PZA 500mg, EMB 400/500mg)
+- Custom medication for allergic patients (pharmacist manual entry)
+- Pharmacist can extend/add/edit doses and medications per patient
+- Staff dashboard with login protection
 """
 
 import hashlib
@@ -50,7 +39,6 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.secret_key = os.environ.get("SECRET_KEY", "change_this_secret")
 db = SQLAlchemy(app)
 
-# Staff credentials — password stored as hash (never plaintext)
 STAFF_USERNAME = os.environ.get("STAFF_USER", "REEN")
 STAFF_PASSWORD_HASH = os.environ.get(
     "STAFF_PASS_HASH",
@@ -59,7 +47,6 @@ STAFF_PASSWORD_HASH = os.environ.get(
 
 
 def staff_required(f):
-    """Decorator to require staff login."""
     @wraps(f)
     def decorated(*args, **kwargs):
         if not session.get("staff_logged_in"):
@@ -82,6 +69,8 @@ class Patient(db.Model):
     weight = db.Column(db.Float, nullable=False)
     tb_type = db.Column(db.String(120), nullable=False)
     start_date = db.Column(db.Date, nullable=False)
+    scan_token = db.Column(db.String(64), unique=True, nullable=True)
+    custom_regimen = db.Column(db.Boolean, default=False, nullable=False)
     doses = db.relationship(
         "MedicationDose", backref="patient", cascade="all, delete-orphan"
     )
@@ -100,7 +89,6 @@ class MedicationDose(db.Model):
     medications_json = db.Column(db.Text, nullable=False)
     taken = db.Column(db.Boolean, default=False, nullable=False)
     taken_time = db.Column(db.DateTime, nullable=True)
-    scan_token = db.Column(db.String(64), unique=True, nullable=True)
 
     @property
     def medications(self) -> dict:
@@ -119,38 +107,73 @@ with app.app_context():
 
 
 # ---------------------------------------------------------------------------
-# Medication calculation and schedule generation
+# Medication regimen with mg dosages
 # ---------------------------------------------------------------------------
 
+# Drug info: name -> mg per tablet
+DRUG_INFO = {
+    "INH": {"mg": 100},
+    "Rifampicin 300mg": {"mg": 300},
+    "Rifampicin 450mg": {"mg": 450},
+    "PZA": {"mg": 500},
+    "EMB 400mg": {"mg": 400},
+    "EMB 500mg": {"mg": 500},
+}
+
+
 def calculate_regimen(weight: float) -> dict:
-    """Return a medication regimen based on the patient's weight."""
+    """Return medication regimen with tablet counts.
+
+    Format: {"drug_name (mg)": count, ...}
+    """
     if weight < 35:
-        return {"INH": 2, "Rifampicin": 2, "PZA": 1, "EMB": 1}
+        return {
+            "INH 100mg": 2,
+            "Rifampicin 300mg": 2,
+            "PZA 500mg": 1,
+            "EMB 400mg": 1,
+        }
     elif weight < 50:
-        return {"INH": 3, "Rifampicin": 2, "PZA": 2, "EMB": 1}
+        return {
+            "INH 100mg": 3,
+            "Rifampicin 300mg": 2,
+            "PZA 500mg": 2,
+            "EMB 400mg": 1,
+        }
     elif weight < 70:
-        return {"INH": 3, "Rifampicin": 3, "PZA": 2, "EMB": 2}
+        return {
+            "INH 100mg": 3,
+            "Rifampicin 450mg": 3,
+            "PZA 500mg": 2,
+            "EMB 500mg": 2,
+        }
     else:
-        return {"INH": 4, "Rifampicin": 3, "PZA": 3, "EMB": 2}
+        return {
+            "INH 100mg": 4,
+            "Rifampicin 450mg": 3,
+            "PZA 500mg": 3,
+            "EMB 500mg": 2,
+        }
 
 
-def make_scan_token(patient_id: int, dose_date: date) -> str:
-    """Generate a unique token for a dose based on patient ID and date."""
-    raw = f"{patient_id}-{dose_date.isoformat()}-{app.secret_key}"
+def make_patient_token(patient_id: int) -> str:
+    """Generate a unique scan token for a patient."""
+    raw = f"patient-{patient_id}-{app.secret_key}"
     return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
 
-def generate_schedule(patient: Patient, days: int = 180) -> None:
-    """Generate a medication schedule for a patient."""
+def generate_schedule(patient: Patient, days: int = 180,
+                      regimen: dict = None) -> None:
+    """Generate medication schedule. Uses custom regimen if provided."""
     MedicationDose.query.filter_by(patient_id=patient.id).delete()
-    regimen = calculate_regimen(patient.weight)
+    if regimen is None:
+        regimen = calculate_regimen(patient.weight)
     for i in range(days):
         scheduled_date = patient.start_date + timedelta(days=i)
         dose = MedicationDose(
             patient_id=patient.id,
             date=scheduled_date,
             taken=False,
-            scan_token=make_scan_token(patient.id, scheduled_date),
         )
         dose.medications = regimen
         db.session.add(dose)
@@ -162,11 +185,6 @@ def generate_schedule(patient: Patient, days: int = 180) -> None:
 # ---------------------------------------------------------------------------
 
 def build_calendar(patient: Patient, year: int, month: int) -> list:
-    """Build a calendar grid aligned to weekdays (Mon=0).
-
-    Returns a list of dicts: {date, status, day_of_month}.
-    Leading None entries pad the grid so day 1 falls on the correct weekday.
-    """
     first_of_month = date(year, month, 1)
     _, last_day = monthrange(year, month)
 
@@ -179,8 +197,6 @@ def build_calendar(patient: Patient, year: int, month: int) -> list:
 
     today = date.today()
     calendar = []
-
-    # Pad leading empty cells (Monday=0 ... Sunday=6)
     start_weekday = first_of_month.weekday()
     for _ in range(start_weekday):
         calendar.append(None)
@@ -202,7 +218,6 @@ def build_calendar(patient: Patient, year: int, month: int) -> list:
 
 
 def create_qr_code(data: str) -> bytes:
-    """Generate a QR code PNG image."""
     qr = qrcode.QRCode(version=1, box_size=10, border=4)
     qr.add_data(data)
     qr.make(fit=True)
@@ -214,7 +229,6 @@ def create_qr_code(data: str) -> bytes:
 
 
 def get_adherence_stats(patient: Patient) -> dict:
-    """Calculate adherence statistics for a patient."""
     today = date.today()
     total_past = MedicationDose.query.filter(
         MedicationDose.patient_id == patient.id,
@@ -247,7 +261,6 @@ def get_adherence_stats(patient: Patient) -> dict:
 
 @app.route("/")
 def index() -> str:
-    """Home page: list all patients with basic adherence info."""
     patients = Patient.query.order_by(Patient.id).all()
     patient_stats = []
     today = date.today()
@@ -266,7 +279,6 @@ def index() -> str:
 
 @app.route("/patient/new", methods=["GET", "POST"])
 def new_patient() -> str:
-    """Create a new patient via form submission."""
     if request.method == "POST":
         name = request.form.get("name", "").strip()
         hn = request.form.get("hn", "").strip()
@@ -276,6 +288,7 @@ def new_patient() -> str:
         tb_type = request.form.get("tb_type", "").strip()
         start_date_str = request.form.get("start_date", "").strip()
         days_str = request.form.get("days_of_medication", "180").strip()
+        use_custom = request.form.get("custom_regimen") == "on"
 
         if not all([name, hn, age, tb_no, weight, tb_type, start_date_str]):
             flash("กรุณากรอกข้อมูลให้ครบทุกช่อง", "danger")
@@ -283,28 +296,47 @@ def new_patient() -> str:
         try:
             start_date_obj = datetime.strptime(start_date_str, "%Y-%m-%d").date()
         except ValueError:
-            flash("รูปแบบวันที่ไม่ถูกต้อง ใช้ YYYY-MM-DD", "danger")
+            flash("รูปแบบวันที่ไม่ถูกต้อง", "danger")
             return render_template("create_patient.html")
         try:
             age_val = int(age)
             weight_val = float(weight)
             days_of_medication = int(days_str)
         except ValueError:
-            flash("ค่าตัวเลขไม่ถูกต้อง (อายุ, น้ำหนัก, หรือจำนวนวัน)", "danger")
+            flash("ค่าตัวเลขไม่ถูกต้อง", "danger")
             return render_template("create_patient.html")
 
         patient = Patient(
-            name=name,
-            hn=hn,
-            age=age_val,
-            tb_no=tb_no,
-            weight=weight_val,
-            tb_type=tb_type,
-            start_date=start_date_obj,
+            name=name, hn=hn, age=age_val, tb_no=tb_no,
+            weight=weight_val, tb_type=tb_type,
+            start_date=start_date_obj, custom_regimen=use_custom,
         )
         db.session.add(patient)
         db.session.commit()
-        generate_schedule(patient, days_of_medication)
+        patient.scan_token = make_patient_token(patient.id)
+        db.session.commit()
+
+        # Build regimen
+        if use_custom:
+            custom = {}
+            drug_names = request.form.getlist("drug_name")
+            drug_counts = request.form.getlist("drug_count")
+            for dname, dcount in zip(drug_names, drug_counts):
+                dname = dname.strip()
+                if dname and dcount.strip():
+                    try:
+                        custom[dname] = int(dcount)
+                    except ValueError:
+                        pass
+            if not custom:
+                flash("กรุณาระบุยาอย่างน้อย 1 รายการ", "danger")
+                db.session.delete(patient)
+                db.session.commit()
+                return render_template("create_patient.html")
+            generate_schedule(patient, days_of_medication, regimen=custom)
+        else:
+            generate_schedule(patient, days_of_medication)
+
         flash("เพิ่มผู้ป่วยสำเร็จ", "success")
         return redirect(url_for("view_patient", id=patient.id))
     return render_template("create_patient.html")
@@ -312,11 +344,9 @@ def new_patient() -> str:
 
 @app.route("/patient/<int:id>")
 def view_patient(id: int) -> str:
-    """Display details, schedule, and calendar for a patient."""
     patient = Patient.query.get_or_404(id)
     today = date.today()
 
-    # Calendar month
     try:
         cal_year = int(request.args.get("year", today.year))
         cal_month = int(request.args.get("month", today.month))
@@ -325,7 +355,6 @@ def view_patient(id: int) -> str:
 
     calendar = build_calendar(patient, cal_year, cal_month)
 
-    # Previous / next month for navigation
     if cal_month == 1:
         prev_year, prev_month = cal_year - 1, 12
     else:
@@ -335,7 +364,6 @@ def view_patient(id: int) -> str:
     else:
         next_year, next_month = cal_year, cal_month + 1
 
-    # Date range filter for doses
     filter_start = request.args.get("from")
     filter_end = request.args.get("to")
     query = MedicationDose.query.filter_by(patient_id=patient.id)
@@ -353,7 +381,6 @@ def view_patient(id: int) -> str:
         except ValueError:
             pass
 
-    # Pagination
     page = request.args.get("page", 1, type=int)
     per_page = 30
     pagination = query.order_by(MedicationDose.date).paginate(
@@ -361,7 +388,6 @@ def view_patient(id: int) -> str:
     )
     doses = pagination.items
 
-    # Today's dose
     today_dose = MedicationDose.query.filter_by(
         patient_id=patient.id, date=today
     ).first()
@@ -370,28 +396,18 @@ def view_patient(id: int) -> str:
 
     return render_template(
         "patient.html",
-        patient=patient,
-        doses=doses,
-        pagination=pagination,
-        calendar=calendar,
-        calendar_year=cal_year,
-        calendar_month=cal_month,
-        prev_year=prev_year,
-        prev_month=prev_month,
-        next_year=next_year,
-        next_month=next_month,
-        today_dose=today_dose,
-        today=today,
-        stats=stats,
-        filter_start=filter_start or "",
-        filter_end=filter_end or "",
+        patient=patient, doses=doses, pagination=pagination,
+        calendar=calendar, calendar_year=cal_year, calendar_month=cal_month,
+        prev_year=prev_year, prev_month=prev_month,
+        next_year=next_year, next_month=next_month,
+        today_dose=today_dose, today=today, stats=stats,
+        filter_start=filter_start or "", filter_end=filter_end or "",
     )
 
 
 @app.route("/patient/<int:id>/mark/<int:dose_id>", methods=["POST"])
 def mark_dose(id: int, dose_id: int) -> str:
-    """Mark a scheduled dose as taken (POST only)."""
-    patient = Patient.query.get_or_404(id)
+    Patient.query.get_or_404(id)
     dose = MedicationDose.query.filter_by(
         id=dose_id, patient_id=id
     ).first_or_404()
@@ -399,10 +415,7 @@ def mark_dose(id: int, dose_id: int) -> str:
         dose.taken = True
         dose.taken_time = datetime.utcnow()
         db.session.commit()
-        flash(
-            f"บันทึกการกินยาวันที่ {dose.date.strftime('%Y-%m-%d')} เรียบร้อย",
-            "success",
-        )
+        flash(f"บันทึกการกินยาวันที่ {dose.date.strftime('%Y-%m-%d')} เรียบร้อย", "success")
     else:
         flash("บันทึกการกินยาไปแล้ว", "info")
     return redirect(url_for("view_patient", id=id))
@@ -410,7 +423,6 @@ def mark_dose(id: int, dose_id: int) -> str:
 
 @app.route("/patient/<int:id>/delete", methods=["POST"])
 def delete_patient(id: int) -> str:
-    """Delete a patient and all their doses."""
     patient = Patient.query.get_or_404(id)
     db.session.delete(patient)
     db.session.commit()
@@ -418,9 +430,200 @@ def delete_patient(id: int) -> str:
     return redirect(url_for("index"))
 
 
+# ---------------------------------------------------------------------------
+# Pharmacist editing routes (staff only)
+# ---------------------------------------------------------------------------
+
+@app.route("/patient/<int:id>/edit_dose/<int:dose_id>", methods=["GET", "POST"])
+@staff_required
+def edit_dose(id: int, dose_id: int) -> str:
+    """Pharmacist edits a single dose's medications."""
+    patient = Patient.query.get_or_404(id)
+    dose = MedicationDose.query.filter_by(
+        id=dose_id, patient_id=id
+    ).first_or_404()
+
+    if request.method == "POST":
+        new_meds = {}
+        drug_names = request.form.getlist("drug_name")
+        drug_counts = request.form.getlist("drug_count")
+        for dname, dcount in zip(drug_names, drug_counts):
+            dname = dname.strip()
+            if dname and dcount.strip():
+                try:
+                    new_meds[dname] = int(dcount)
+                except ValueError:
+                    pass
+        if new_meds:
+            dose.medications = new_meds
+            db.session.commit()
+            flash(f"แก้ไขยาวันที่ {dose.date.strftime('%Y-%m-%d')} เรียบร้อย", "success")
+        else:
+            flash("กรุณาระบุยาอย่างน้อย 1 รายการ", "danger")
+            return render_template("edit_dose.html", patient=patient, dose=dose)
+        return redirect(url_for("view_patient", id=id))
+
+    return render_template("edit_dose.html", patient=patient, dose=dose)
+
+
+@app.route("/patient/<int:id>/extend", methods=["GET", "POST"])
+@staff_required
+def extend_schedule(id: int) -> str:
+    """Pharmacist adds more days or adjusts medication for remaining doses."""
+    patient = Patient.query.get_or_404(id)
+
+    last_dose = MedicationDose.query.filter_by(
+        patient_id=patient.id
+    ).order_by(MedicationDose.date.desc()).first()
+    last_date = last_dose.date if last_dose else patient.start_date
+    current_meds = last_dose.medications if last_dose else calculate_regimen(patient.weight)
+
+    if request.method == "POST":
+        action = request.form.get("action")
+
+        if action == "add_days":
+            extra_days_str = request.form.get("extra_days", "15").strip()
+            try:
+                extra_days = int(extra_days_str)
+            except ValueError:
+                flash("จำนวนวันไม่ถูกต้อง", "danger")
+                return redirect(url_for("extend_schedule", id=id))
+
+            # Use custom meds if provided, else same as last dose
+            use_custom = request.form.get("use_custom_meds") == "on"
+            if use_custom:
+                regimen = {}
+                drug_names = request.form.getlist("drug_name")
+                drug_counts = request.form.getlist("drug_count")
+                for dname, dcount in zip(drug_names, drug_counts):
+                    dname = dname.strip()
+                    if dname and dcount.strip():
+                        try:
+                            regimen[dname] = int(dcount)
+                        except ValueError:
+                            pass
+                if not regimen:
+                    regimen = current_meds
+            else:
+                regimen = current_meds
+
+            start = last_date + timedelta(days=1)
+            for i in range(extra_days):
+                d = start + timedelta(days=i)
+                dose = MedicationDose(
+                    patient_id=patient.id, date=d, taken=False,
+                )
+                dose.medications = regimen
+                db.session.add(dose)
+            db.session.commit()
+            flash(f"เพิ่ม {extra_days} วัน (ตั้งแต่ {start.strftime('%Y-%m-%d')})", "success")
+
+        elif action == "update_future":
+            # Update all future untaken doses with new medications
+            regimen = {}
+            drug_names = request.form.getlist("drug_name")
+            drug_counts = request.form.getlist("drug_count")
+            for dname, dcount in zip(drug_names, drug_counts):
+                dname = dname.strip()
+                if dname and dcount.strip():
+                    try:
+                        regimen[dname] = int(dcount)
+                    except ValueError:
+                        pass
+            if regimen:
+                today = date.today()
+                future_doses = MedicationDose.query.filter(
+                    MedicationDose.patient_id == patient.id,
+                    MedicationDose.date >= today,
+                    MedicationDose.taken == False,
+                ).all()
+                for d in future_doses:
+                    d.medications = regimen
+                db.session.commit()
+                flash(f"อัปเดตยาสำหรับ {len(future_doses)} วันที่เหลือ", "success")
+            else:
+                flash("กรุณาระบุยาอย่างน้อย 1 รายการ", "danger")
+
+        return redirect(url_for("view_patient", id=id))
+
+    return render_template(
+        "extend_schedule.html",
+        patient=patient,
+        last_date=last_date,
+        current_meds=current_meds,
+    )
+
+
+# ---------------------------------------------------------------------------
+# QR & Scan — 1 QR per patient
+# ---------------------------------------------------------------------------
+
+@app.route("/qr/patient/<int:patient_id>.png")
+def qr_code_patient(patient_id: int):
+    """Serve a single QR code image for a patient."""
+    patient = Patient.query.get_or_404(patient_id)
+    scan_url = url_for("scan_patient", token=patient.scan_token, _external=True)
+    img_bytes = create_qr_code(scan_url)
+    return send_file(
+        BytesIO(img_bytes),
+        mimetype="image/png",
+        as_attachment=False,
+        download_name=f"qr_patient_{patient.id}.png",
+    )
+
+
+@app.route("/qr_page/<int:patient_id>")
+def qr_code_page(patient_id: int) -> str:
+    """Show QR code page for a patient (single QR for all doses)."""
+    patient = Patient.query.get_or_404(patient_id)
+    return render_template("qr.html", patient=patient)
+
+
+@app.route("/scan/<token>", methods=["GET", "POST"])
+def scan_patient(token: str) -> str:
+    """Mobile page opened when patient scans their QR code.
+
+    Shows today's dose. Patient can confirm taking medication.
+    Also shows recent dose history.
+    """
+    patient = Patient.query.filter_by(scan_token=token).first_or_404()
+    today = date.today()
+
+    today_dose = MedicationDose.query.filter_by(
+        patient_id=patient.id, date=today
+    ).first()
+
+    if request.method == "POST" and today_dose and not today_dose.taken:
+        today_dose.taken = True
+        today_dose.taken_time = datetime.utcnow()
+        db.session.commit()
+
+    # Recent 7 days history
+    week_ago = today - timedelta(days=6)
+    recent_doses = MedicationDose.query.filter(
+        MedicationDose.patient_id == patient.id,
+        MedicationDose.date >= week_ago,
+        MedicationDose.date <= today,
+    ).order_by(MedicationDose.date.desc()).all()
+
+    stats = get_adherence_stats(patient)
+
+    return render_template(
+        "scan.html",
+        patient=patient,
+        today_dose=today_dose,
+        today=today,
+        recent_doses=recent_doses,
+        stats=stats,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Auth routes
+# ---------------------------------------------------------------------------
+
 @app.route("/login", methods=["GET", "POST"])
 def staff_login() -> str:
-    """Staff login page."""
     if session.get("staff_logged_in"):
         return redirect(url_for("dashboard"))
     if request.method == "POST":
@@ -439,7 +642,6 @@ def staff_login() -> str:
 
 @app.route("/logout")
 def staff_logout() -> str:
-    """Staff logout."""
     session.pop("staff_logged_in", None)
     session.pop("staff_user", None)
     flash("ออกจากระบบเรียบร้อย", "info")
@@ -449,7 +651,6 @@ def staff_logout() -> str:
 @app.route("/dashboard")
 @staff_required
 def dashboard() -> str:
-    """Staff dashboard showing adherence across all patients."""
     patients = Patient.query.order_by(Patient.id).all()
     today = date.today()
     rows = []
@@ -467,51 +668,9 @@ def dashboard() -> str:
         total_overdue_all += stats["overdue"]
 
     return render_template(
-        "dashboard.html",
-        rows=rows,
-        today=today,
-        total_patients=len(patients),
-        total_overdue=total_overdue_all,
+        "dashboard.html", rows=rows, today=today,
+        total_patients=len(patients), total_overdue=total_overdue_all,
     )
-
-
-@app.route("/qr/<int:dose_id>.png")
-def qr_code(dose_id: int):
-    """Serve a QR code image encoding the scan URL for this dose."""
-    dose = MedicationDose.query.get_or_404(dose_id)
-    scan_url = url_for("scan_dose", token=dose.scan_token, _external=True)
-    img_bytes = create_qr_code(scan_url)
-    return send_file(
-        BytesIO(img_bytes),
-        mimetype="image/png",
-        as_attachment=False,
-        download_name=f"qr_{dose.id}.png",
-    )
-
-
-@app.route("/qr_page/<int:dose_id>")
-def qr_code_page(dose_id: int) -> str:
-    """Render a page showing the QR code for a dose."""
-    dose = MedicationDose.query.get_or_404(dose_id)
-    return render_template("qr.html", dose=dose)
-
-
-@app.route("/scan/<token>", methods=["GET", "POST"])
-def scan_dose(token: str) -> str:
-    """Mobile-friendly page opened when patient scans QR code.
-
-    GET  — show dose details and a confirm button.
-    POST — mark the dose as taken and show success.
-    """
-    dose = MedicationDose.query.filter_by(scan_token=token).first_or_404()
-    patient = Patient.query.get_or_404(dose.patient_id)
-
-    if request.method == "POST" and not dose.taken:
-        dose.taken = True
-        dose.taken_time = datetime.utcnow()
-        db.session.commit()
-
-    return render_template("scan.html", dose=dose, patient=patient)
 
 
 # ---------------------------------------------------------------------------
@@ -522,15 +681,9 @@ def scan_dose(token: str) -> str:
 def inject_helpers():
     def format_date(dt: date) -> str:
         return dt.strftime("%Y-%m-%d") if dt else ""
-
     def format_datetime(dt: datetime) -> str:
         return dt.strftime("%Y-%m-%d %H:%M:%S") if dt else ""
-
-    return dict(
-        format_date=format_date,
-        format_datetime=format_datetime,
-        date=date,
-    )
+    return dict(format_date=format_date, format_datetime=format_datetime, date=date)
 
 
 THAI_MONTHS = [

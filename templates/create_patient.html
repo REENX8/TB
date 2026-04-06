@@ -43,9 +43,56 @@
       <div class="form-text">ค่าเริ่มต้น 180 วัน (6 เดือน)</div>
     </div>
   </div>
+
+  {# Custom regimen toggle #}
+  <div class="card mt-4">
+    <div class="card-body">
+      <div class="form-check form-switch mb-3">
+        <input class="form-check-input" type="checkbox" id="custom_regimen" name="custom_regimen" onchange="toggleCustom()">
+        <label class="form-check-label" for="custom_regimen">
+          <strong>กำหนดยาเอง</strong> (สำหรับผู้ป่วยแพ้ยา / ปรับสูตรยา)
+        </label>
+      </div>
+      <div id="custom_section" style="display:none;">
+        <p class="text-muted mb-2">เภสัชกรระบุชื่อยาและจำนวนเม็ดต่อวัน:</p>
+        <div id="drug_rows">
+          <div class="row g-2 mb-2 drug-row">
+            <div class="col-7">
+              <input type="text" class="form-control form-control-sm" name="drug_name" placeholder="ชื่อยา เช่น INH 100mg" />
+            </div>
+            <div class="col-3">
+              <input type="number" class="form-control form-control-sm" name="drug_count" placeholder="เม็ด" min="1" />
+            </div>
+            <div class="col-2">
+              <button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('.drug-row').remove()">X</button>
+            </div>
+          </div>
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addDrugRow()">+ เพิ่มรายการยา</button>
+      </div>
+    </div>
+  </div>
+
   <div class="mt-3">
     <button type="submit" class="btn btn-primary">บันทึก</button>
     <a href="{{ url_for('index') }}" class="btn btn-secondary">ยกเลิก</a>
   </div>
 </form>
+
+<script>
+function toggleCustom() {
+  const sec = document.getElementById('custom_section');
+  sec.style.display = document.getElementById('custom_regimen').checked ? 'block' : 'none';
+}
+function addDrugRow() {
+  const row = document.createElement('div');
+  row.className = 'row g-2 mb-2 drug-row';
+  row.innerHTML = `
+    <div class="col-7"><input type="text" class="form-control form-control-sm" name="drug_name" placeholder="ชื่อยา เช่น Rifampicin 300mg" /></div>
+    <div class="col-3"><input type="number" class="form-control form-control-sm" name="drug_count" placeholder="เม็ด" min="1" /></div>
+    <div class="col-2"><button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('.drug-row').remove()">X</button></div>
+  `;
+  document.getElementById('drug_rows').appendChild(row);
+}
+</script>
 {% endblock %}
