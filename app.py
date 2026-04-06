@@ -22,7 +22,9 @@ Run:
 
 import hashlib
 import json
+import os
 from datetime import date, datetime, timedelta
+from functools import wraps
 from io import BytesIO
 from calendar import monthrange
 
@@ -34,17 +36,36 @@ from flask import (
     render_template,
     request,
     send_file,
+    session,
     url_for,
 )
 from flask_sqlalchemy import SQLAlchemy
+from werkzeug.security import check_password_hash
 import qrcode
 
 
 app = Flask(__name__)
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///tb.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-app.secret_key = "change_this_secret"
+app.secret_key = os.environ.get("SECRET_KEY", "change_this_secret")
 db = SQLAlchemy(app)
+
+# Staff credentials — password stored as hash (never plaintext)
+STAFF_USERNAME = os.environ.get("STAFF_USER", "REEN")
+STAFF_PASSWORD_HASH = os.environ.get(
+    "STAFF_PASS_HASH",
+    "scrypt:32768:8:1$lYS9DAFUtGkNDbY5$10b7a5f05d5244417e8bb34c6848b6a016b9ae0cad769814db43d87d310b57b5910fabbb719c43d15e4b615791284c01d165bb0d74b38abd5db0468165a7c91d",
+)
+
+
+def staff_required(f):
+    """Decorator to require staff login."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get("staff_logged_in"):
+            return redirect(url_for("staff_login", next=request.url))
+        return f(*args, **kwargs)
+    return decorated
 
 
 # ---------------------------------------------------------------------------
@@ -397,7 +418,36 @@ def delete_patient(id: int) -> str:
     return redirect(url_for("index"))
 
 
+@app.route("/login", methods=["GET", "POST"])
+def staff_login() -> str:
+    """Staff login page."""
+    if session.get("staff_logged_in"):
+        return redirect(url_for("dashboard"))
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
+        if username == STAFF_USERNAME and check_password_hash(STAFF_PASSWORD_HASH, password):
+            session["staff_logged_in"] = True
+            session["staff_user"] = username
+            flash("เข้าสู่ระบบสำเร็จ", "success")
+            next_url = request.args.get("next") or url_for("dashboard")
+            return redirect(next_url)
+        else:
+            flash("ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง", "danger")
+    return render_template("login.html")
+
+
+@app.route("/logout")
+def staff_logout() -> str:
+    """Staff logout."""
+    session.pop("staff_logged_in", None)
+    session.pop("staff_user", None)
+    flash("ออกจากระบบเรียบร้อย", "info")
+    return redirect(url_for("index"))
+
+
 @app.route("/dashboard")
+@staff_required
 def dashboard() -> str:
     """Staff dashboard showing adherence across all patients."""
     patients = Patient.query.order_by(Patient.id).all()
