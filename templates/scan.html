@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ยืนยันกินยา — TB Tracker</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous" />
+  <style>
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #e3f2fd 0%, #f5f5f5 100%);
+      padding: 16px;
+    }
+    .scan-card {
+      max-width: 420px;
+      width: 100%;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.10);
+    }
+    .scan-header {
+      padding: 24px 20px 16px;
+      text-align: center;
+    }
+    .pill-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+    }
+    .pill-item {
+      background: #e8f5e9;
+      border-radius: 20px;
+      padding: 6px 14px;
+      font-size: 0.95rem;
+    }
+    .confirm-btn {
+      width: 100%;
+      padding: 16px;
+      font-size: 1.3rem;
+      border-radius: 12px;
+    }
+    .success-icon {
+      font-size: 4rem;
+      color: #198754;
+    }
+  </style>
+</head>
+<body>
+  <div class="card scan-card">
+    {% if dose.taken %}
+    {# ===== Already taken / just confirmed ===== #}
+    <div class="card-body text-center py-5">
+      <div class="success-icon mb-3">&#10004;</div>
+      <h2 class="mb-2">บันทึกเรียบร้อย!</h2>
+      <p class="text-muted mb-1">{{ patient.name }}</p>
+      <p class="mb-1"><strong>วันที่:</strong> {{ dose.date.strftime('%d/%m/%Y') }}</p>
+      <p class="mb-3"><strong>เวลาที่บันทึก:</strong> {{ dose.taken_time.strftime('%H:%M น.') if dose.taken_time else '-' }}</p>
+      <div class="pill-list mb-4">
+        {% for name, count in dose.medications.items() %}
+        <span class="pill-item">{{ name }} {{ count }} เม็ด</span>
+        {% endfor %}
+      </div>
+      <p class="text-success fw-bold">กินยาครบแล้ววันนี้ ขอบคุณที่รักษาต่อเนื่อง</p>
+    </div>
+
+    {% else %}
+    {# ===== Not yet taken — show confirm button ===== #}
+    <div class="scan-header bg-primary text-white">
+      <h4 class="mb-1">ยืนยันกินยา</h4>
+      <p class="mb-0 opacity-75">{{ patient.name }}</p>
+    </div>
+    <div class="card-body text-center">
+      <p class="fs-5 mb-1"><strong>วันที่:</strong> {{ dose.date.strftime('%d/%m/%Y') }}</p>
+      <hr>
+      <p class="text-muted mb-2">รายการยาที่ต้องกิน:</p>
+      <div class="pill-list mb-4">
+        {% for name, count in dose.medications.items() %}
+        <span class="pill-item">{{ name }} {{ count }} เม็ด</span>
+        {% endfor %}
+      </div>
+      <form method="post">
+        <button type="submit" class="btn btn-success confirm-btn">
+          &#10004; กินยาแล้ว
+        </button>
+      </form>
+      <p class="text-muted mt-3" style="font-size:0.8rem;">กดปุ่มด้านบนเพื่อยืนยันว่าคุณกินยาเรียบร้อยแล้ว</p>
+    </div>
+    {% endif %}
+  </div>
+</body>
+</html>

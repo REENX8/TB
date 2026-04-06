@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="th">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TB Medication Tracker</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+      crossorigin="anonymous"
+    />
+    <style>
+      body { padding-bottom: 60px; }
+      .calendar-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 2px;
+      }
+      .calendar-header {
+        text-align: center;
+        font-weight: bold;
+        font-size: 0.75rem;
+        padding: 4px;
+        background: #f8f9fa;
+      }
+      .calendar-cell {
+        min-height: 48px;
+        border: 1px solid #dee2e6;
+        padding: 4px;
+        font-size: 0.8rem;
+        text-align: center;
+      }
+      .calendar-cell.empty { border: none; }
+      .calendar-cell.taken { background: #d4edda; }
+      .calendar-cell.pending { background: #fff3cd; }
+      .calendar-cell.overdue { background: #f8d7da; }
+      .calendar-cell.no_schedule { background: #f8f9fa; color: #aaa; }
+      .badge-adherence-high { background-color: #198754; }
+      .badge-adherence-mid { background-color: #ffc107; color: #000; }
+      .badge-adherence-low { background-color: #dc3545; }
+      .today-card { border-left: 4px solid #0d6efd; }
+    </style>
+  </head>
+  <body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-3">
+      <div class="container-fluid">
+        <a class="navbar-brand" href="{{ url_for('index') }}">TB Tracker</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+          <ul class="navbar-nav">
+            <li class="nav-item">
+              <a class="nav-link" href="{{ url_for('index') }}">ผู้ป่วย</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="{{ url_for('dashboard') }}">Dashboard</a>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </nav>
+    <div class="container">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+        <div class="alert alert-{{ category if category in ('success','danger','warning','info') else 'info' }} alert-dismissible fade show" role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        {% endfor %}
+      {% endif %}
+      {% endwith %}
+      {% block content %}{% endblock %}
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+  </body>
+</html>

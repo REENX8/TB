@@ -1,0 +1,207 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h1 class="h3 mb-0">{{ patient.name }}</h1>
+    <small class="text-muted">HN: {{ patient.hn }} | TB no: {{ patient.tb_no }}</small>
+  </div>
+  <div>
+    <a href="{{ url_for('index') }}" class="btn btn-secondary">กลับ</a>
+    <form method="post" action="{{ url_for('delete_patient', id=patient.id) }}" class="d-inline" onsubmit="return confirm('ยืนยันลบผู้ป่วย {{ patient.name }}?');">
+      <button type="submit" class="btn btn-outline-danger">ลบผู้ป่วย</button>
+    </form>
+  </div>
+</div>
+
+{# ---------- Today's dose quick card ---------- #}
+{% if today_dose %}
+<div class="card today-card mb-3">
+  <div class="card-body">
+    <h5 class="card-title">ยาวันนี้ ({{ today.strftime('%Y-%m-%d') }})</h5>
+    <div class="row align-items-center">
+      <div class="col-md-6">
+        {% for name, count in today_dose.medications.items() %}
+          <span class="badge bg-light text-dark me-1 mb-1">{{ name }}: {{ count }} เม็ด</span>
+        {% endfor %}
+      </div>
+      <div class="col-md-6 text-md-end mt-2 mt-md-0">
+        {% if today_dose.taken %}
+          <span class="badge bg-success fs-6">กินยาแล้ว</span>
+          <small class="text-muted ms-2">{{ today_dose.taken_time.strftime('%H:%M:%S') if today_dose.taken_time else '' }}</small>
+        {% else %}
+          <form method="post" action="{{ url_for('mark_dose', id=patient.id, dose_id=today_dose.id) }}" class="d-inline">
+            <button type="submit" class="btn btn-success btn-lg">กินยาแล้ว</button>
+          </form>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div class="row">
+  {# ---------- Patient details ---------- #}
+  <div class="col-md-4 mb-3">
+    <div class="card h-100">
+      <div class="card-body">
+        <h5 class="card-title">ข้อมูลผู้ป่วย</h5>
+        <p class="mb-1">อายุ: {{ patient.age }} ปี</p>
+        <p class="mb-1">น้ำหนัก: {{ patient.weight }} kg</p>
+        <p class="mb-1">ชนิด: {{ patient.tb_type }}</p>
+        <p class="mb-1">วันเริ่มรักษา: {{ patient.start_date.strftime('%Y-%m-%d') }}</p>
+        <hr>
+        <h6>สถิติการกินยา</h6>
+        <p class="mb-1">กินแล้ว: <strong>{{ stats.taken }}</strong> / {{ stats.total_past }} วัน</p>
+        <p class="mb-1">ค้าง: <strong class="text-danger">{{ stats.overdue }}</strong> วัน</p>
+        <p class="mb-1">ความสม่ำเสมอ:
+          <span class="badge {% if stats.adherence_pct >= 90 %}badge-adherence-high{% elif stats.adherence_pct >= 70 %}badge-adherence-mid{% else %}badge-adherence-low{% endif %}">
+            {{ stats.adherence_pct }}%
+          </span>
+        </p>
+        <div class="progress mt-2" style="height: 8px;">
+          <div class="progress-bar {% if stats.adherence_pct >= 90 %}bg-success{% elif stats.adherence_pct >= 70 %}bg-warning{% else %}bg-danger{% endif %}" style="width: {{ stats.adherence_pct }}%;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# ---------- Calendar ---------- #}
+  <div class="col-md-8 mb-3">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <a href="{{ url_for('view_patient', id=patient.id, year=prev_year, month=prev_month) }}" class="btn btn-sm btn-outline-secondary">&laquo;</a>
+          <h5 class="card-title mb-0">{{ calendar_month|thai_month }} {{ calendar_year }}</h5>
+          <a href="{{ url_for('view_patient', id=patient.id, year=next_year, month=next_month) }}" class="btn btn-sm btn-outline-secondary">&raquo;</a>
+        </div>
+        <div class="calendar-grid">
+          <div class="calendar-header">จ.</div>
+          <div class="calendar-header">อ.</div>
+          <div class="calendar-header">พ.</div>
+          <div class="calendar-header">พฤ.</div>
+          <div class="calendar-header">ศ.</div>
+          <div class="calendar-header">ส.</div>
+          <div class="calendar-header">อา.</div>
+          {% for day in calendar %}
+            {% if day is none %}
+              <div class="calendar-cell empty"></div>
+            {% else %}
+              <div class="calendar-cell {{ day.status }}">
+                <strong>{{ day.day }}</strong><br>
+                {% if day.status == 'taken' %}
+                  <span class="text-success">&#10004;</span>
+                {% elif day.status == 'overdue' %}
+                  <span class="text-danger">&#10008;</span>
+                {% elif day.status == 'pending' %}
+                  <span class="text-warning">&#9679;</span>
+                {% else %}
+                  <span class="text-muted">&mdash;</span>
+                {% endif %}
+              </div>
+            {% endif %}
+          {% endfor %}
+        </div>
+        <div class="mt-2 d-flex gap-3" style="font-size:0.8rem;">
+          <span><span class="badge" style="background:#d4edda;">&nbsp;</span> กินแล้ว</span>
+          <span><span class="badge" style="background:#fff3cd;">&nbsp;</span> รอกิน</span>
+          <span><span class="badge" style="background:#f8d7da;">&nbsp;</span> ค้าง/เลยกำหนด</span>
+          <span><span class="badge" style="background:#f8f9fa;">&nbsp;</span> ไม่มีนัด</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ---------- Dose filter ---------- #}
+<div class="card mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-auto">
+        <label class="form-label mb-0">จากวันที่</label>
+        <input type="date" class="form-control form-control-sm" name="from" value="{{ filter_start }}" />
+      </div>
+      <div class="col-auto">
+        <label class="form-label mb-0">ถึงวันที่</label>
+        <input type="date" class="form-control form-control-sm" name="to" value="{{ filter_end }}" />
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-sm btn-primary">กรอง</button>
+        <a href="{{ url_for('view_patient', id=patient.id) }}" class="btn btn-sm btn-outline-secondary">ล้าง</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+{# ---------- Dose table ---------- #}
+<h4 class="mt-2">ตารางยา</h4>
+<div class="table-responsive">
+  <table class="table table-bordered table-sm align-middle">
+    <thead class="table-light">
+      <tr>
+        <th>วันที่</th>
+        <th>รายการยา</th>
+        <th>สถานะ</th>
+        <th>จัดการ</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for dose in doses %}
+      <tr class="{% if not dose.taken and dose.date < today %}table-danger{% endif %}">
+        <td>{{ dose.date.strftime('%Y-%m-%d') }}</td>
+        <td>
+          {% for name, count in dose.medications.items() %}
+            <span class="badge bg-light text-dark">{{ name }}: {{ count }}</span>
+          {% endfor %}
+        </td>
+        <td>
+          {% if dose.taken %}
+            <span class="badge bg-success">กินแล้ว</span>
+            <small class="text-muted">{{ dose.taken_time.strftime('%Y-%m-%d %H:%M') if dose.taken_time else '' }}</small>
+          {% elif dose.date < today %}
+            <span class="badge bg-danger">ค้าง</span>
+          {% else %}
+            <span class="badge bg-warning text-dark">รอกิน</span>
+          {% endif %}
+        </td>
+        <td>
+          <a href="{{ url_for('qr_code_page', dose_id=dose.id) }}" target="_blank" class="btn btn-sm btn-outline-secondary mb-1">QR</a>
+          {% if not dose.taken %}
+          <form method="post" action="{{ url_for('mark_dose', id=patient.id, dose_id=dose.id) }}" class="d-inline">
+            <button type="submit" class="btn btn-sm btn-success mb-1">กินแล้ว</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{# ---------- Pagination ---------- #}
+{% if pagination.pages > 1 %}
+<nav>
+  <ul class="pagination pagination-sm justify-content-center">
+    {% if pagination.has_prev %}
+    <li class="page-item">
+      <a class="page-link" href="{{ url_for('view_patient', id=patient.id, page=pagination.prev_num, **{'from': filter_start, 'to': filter_end}) }}">ก่อนหน้า</a>
+    </li>
+    {% endif %}
+    {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+      {% if p %}
+        <li class="page-item {% if p == pagination.page %}active{% endif %}">
+          <a class="page-link" href="{{ url_for('view_patient', id=patient.id, page=p, **{'from': filter_start, 'to': filter_end}) }}">{{ p }}</a>
+        </li>
+      {% else %}
+        <li class="page-item disabled"><span class="page-link">...</span></li>
+      {% endif %}
+    {% endfor %}
+    {% if pagination.has_next %}
+    <li class="page-item">
+      <a class="page-link" href="{{ url_for('view_patient', id=patient.id, page=pagination.next_num, **{'from': filter_start, 'to': filter_end}) }}">ถัดไป</a>
+    </li>
+    {% endif %}
+  </ul>
+</nav>
+{% endif %}
+<p class="text-muted text-center">แสดงหน้า {{ pagination.page }} จาก {{ pagination.pages }} (ทั้งหมด {{ pagination.total }} รายการ)</p>
+{% endblock %}

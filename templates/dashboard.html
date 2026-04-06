@@ -1,0 +1,107 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1 class="h3 mb-3">Dashboard เจ้าหน้าที่</h1>
+
+{# ---------- Summary cards ---------- #}
+<div class="row mb-4">
+  <div class="col-md-3 mb-2">
+    <div class="card text-center">
+      <div class="card-body">
+        <h2 class="mb-0">{{ total_patients }}</h2>
+        <small class="text-muted">ผู้ป่วยทั้งหมด</small>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3 mb-2">
+    <div class="card text-center border-danger">
+      <div class="card-body">
+        <h2 class="mb-0 text-danger">{{ total_overdue }}</h2>
+        <small class="text-muted">โดสค้างรวม (ทุกราย)</small>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3 mb-2">
+    <div class="card text-center border-success">
+      <div class="card-body">
+        {% set good = rows|selectattr('stats.adherence_pct', 'ge', 90)|list|length %}
+        <h2 class="mb-0 text-success">{{ good }}</h2>
+        <small class="text-muted">สม่ำเสมอ (&ge;90%)</small>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3 mb-2">
+    <div class="card text-center border-warning">
+      <div class="card-body">
+        {% set risk = rows|selectattr('stats.adherence_pct', 'lt', 70)|list|length %}
+        <h2 class="mb-0 text-warning">{{ risk }}</h2>
+        <small class="text-muted">เสี่ยงขาดยา (&lt;70%)</small>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ---------- Patient table ---------- #}
+<div class="table-responsive">
+  <table class="table table-hover align-middle">
+    <thead class="table-light">
+      <tr>
+        <th>ID</th>
+        <th>ชื่อ</th>
+        <th>HN</th>
+        <th>ชนิด</th>
+        <th>วันเริ่ม</th>
+        <th>กินแล้ว / ทั้งหมด</th>
+        <th>ค้าง</th>
+        <th>ความสม่ำเสมอ</th>
+        <th>ยาวันนี้</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr class="{% if row.stats.adherence_pct < 70 %}table-danger{% elif row.stats.adherence_pct < 90 %}table-warning{% endif %}">
+        <td>{{ row.patient.id }}</td>
+        <td>{{ row.patient.name }}</td>
+        <td>{{ row.patient.hn }}</td>
+        <td>{{ row.patient.tb_type }}</td>
+        <td>{{ row.patient.start_date.strftime('%Y-%m-%d') }}</td>
+        <td>{{ row.stats.taken }} / {{ row.stats.total_past }}</td>
+        <td>
+          {% if row.stats.overdue > 0 %}
+            <span class="badge bg-danger">{{ row.stats.overdue }}</span>
+          {% else %}
+            <span class="text-success">0</span>
+          {% endif %}
+        </td>
+        <td>
+          <div class="d-flex align-items-center gap-2">
+            <div class="progress flex-grow-1" style="height: 6px; min-width: 60px;">
+              <div class="progress-bar {% if row.stats.adherence_pct >= 90 %}bg-success{% elif row.stats.adherence_pct >= 70 %}bg-warning{% else %}bg-danger{% endif %}" style="width: {{ row.stats.adherence_pct }}%;"></div>
+            </div>
+            <small>{{ row.stats.adherence_pct }}%</small>
+          </div>
+        </td>
+        <td>
+          {% if row.today_dose %}
+            {% if row.today_dose.taken %}
+              <span class="badge bg-success">กินแล้ว</span>
+            {% else %}
+              <span class="badge bg-warning text-dark">ยังไม่กิน</span>
+            {% endif %}
+          {% else %}
+            <span class="text-muted">-</span>
+          {% endif %}
+        </td>
+        <td>
+          <a href="{{ url_for('view_patient', id=row.patient.id) }}" class="btn btn-sm btn-outline-primary">ดู</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if not rows %}
+<div class="alert alert-secondary text-center">ยังไม่มีผู้ป่วยในระบบ</div>
+{% endif %}
+{% endblock %}
