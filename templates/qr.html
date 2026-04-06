@@ -1,19 +1,13 @@
 {% extends 'base.html' %}
 {% block content %}
-<h1 class="h3 mb-3">QR Code - Dose #{{ dose.id }}</h1>
-<div class="card" style="max-width: 400px;">
+<h1 class="h3 mb-3">QR Code - {{ patient.name }}</h1>
+<div class="card" style="max-width: 420px;">
   <div class="card-body text-center">
-    <p>วันที่: <strong>{{ dose.date.strftime('%Y-%m-%d') }}</strong></p>
-    <img src="{{ url_for('qr_code', dose_id=dose.id) }}" alt="QR Code" class="img-fluid mb-3" />
-    <p class="text-muted">สแกน QR Code นี้เพื่อยืนยันการกินยา</p>
-    {% if dose.taken %}
-      <span class="badge bg-success fs-6">กินยาแล้ว</span>
-    {% else %}
-      <form method="post" action="{{ url_for('mark_dose', id=dose.patient_id, dose_id=dose.id) }}">
-        <button type="submit" class="btn btn-success">ยืนยันกินยาแล้ว</button>
-      </form>
-    {% endif %}
+    <p>HN: <strong>{{ patient.hn }}</strong> | TB no: <strong>{{ patient.tb_no }}</strong></p>
+    <img src="{{ url_for('qr_code_patient', patient_id=patient.id) }}" alt="QR Code" class="img-fluid mb-3" />
+    <p class="text-muted">ใช้ QR Code นี้ใบเดียวตลอดการรักษา<br>สแกนทุกวันเพื่อยืนยันการกินยา</p>
+    <a href="{{ url_for('qr_code_patient', patient_id=patient.id) }}" download="QR_{{ patient.hn }}.png" class="btn btn-outline-primary">ดาวน์โหลด QR</a>
   </div>
 </div>
-<a href="{{ url_for('view_patient', id=dose.patient_id) }}" class="btn btn-secondary mt-3">กลับหน้าผู้ป่วย</a>
+<a href="{{ url_for('view_patient', id=patient.id) }}" class="btn btn-secondary mt-3">กลับหน้าผู้ป่วย</a>
 {% endblock %}
