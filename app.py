@@ -9,12 +9,13 @@ Features:
 - Staff dashboard with login protection
 """
 
+import csv
 import hashlib
 import json
 import os
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from functools import wraps
-from io import BytesIO
+from io import BytesIO, StringIO
 from calendar import monthrange
 
 from flask import (
@@ -29,6 +30,7 @@ from flask import (
     url_for,
 )
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import func, case as sa_case
 from werkzeug.security import check_password_hash
 import qrcode
 
@@ -39,6 +41,7 @@ if _db_url.startswith("postgres://"):
     _db_url = _db_url.replace("postgres://", "postgresql://", 1)
 app.config["SQLALCHEMY_DATABASE_URI"] = _db_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=8)
 app.secret_key = os.environ.get("SECRET_KEY", "change_this_secret")
 db = SQLAlchemy(app)
 
@@ -243,21 +246,18 @@ def create_qr_code(data: str) -> bytes:
 
 def get_adherence_stats(patient: Patient) -> dict:
     today = date.today()
-    total_past = MedicationDose.query.filter(
-        MedicationDose.patient_id == patient.id,
-        MedicationDose.date <= today,
-    ).count()
-    taken = MedicationDose.query.filter(
-        MedicationDose.patient_id == patient.id,
-        MedicationDose.date <= today,
-        MedicationDose.taken == True,
-    ).count()
-    overdue = MedicationDose.query.filter(
-        MedicationDose.patient_id == patient.id,
-        MedicationDose.date <= today,
-        MedicationDose.taken == False,
-    ).count()
-    total_all = MedicationDose.query.filter_by(patient_id=patient.id).count()
+    row = db.session.query(
+        func.count(MedicationDose.id).label("total_all"),
+        func.sum(sa_case((MedicationDose.date <= today, 1), else_=0)).label("total_past"),
+        func.sum(sa_case(
+            (db.and_(MedicationDose.date <= today, MedicationDose.taken == True), 1),
+            else_=0,
+        )).label("taken"),
+    ).filter(MedicationDose.patient_id == patient.id).one()
+    total_all = row.total_all or 0
+    total_past = row.total_past or 0
+    taken = row.taken or 0
+    overdue = total_past - taken
     pct = round(taken / total_past * 100, 1) if total_past > 0 else 0
     return {
         "total_past": total_past,
@@ -273,6 +273,7 @@ def get_adherence_stats(patient: Patient) -> dict:
 # ---------------------------------------------------------------------------
 
 @app.route("/")
+@staff_required
 def index() -> str:
     patients = Patient.query.order_by(Patient.id).all()
     patient_stats = []
@@ -291,6 +292,7 @@ def index() -> str:
 
 
 @app.route("/patient/new", methods=["GET", "POST"])
+@staff_required
 def new_patient() -> str:
     if request.method == "POST":
         name = request.form.get("name", "").strip()
@@ -356,8 +358,9 @@ def new_patient() -> str:
 
 
 @app.route("/patient/<int:id>")
+@staff_required
 def view_patient(id: int) -> str:
-    patient = Patient.query.get_or_404(id)
+    patient = db.get_or_404(Patient, id)
     today = date.today()
 
     try:
@@ -419,14 +422,15 @@ def view_patient(id: int) -> str:
 
 
 @app.route("/patient/<int:id>/mark/<int:dose_id>", methods=["POST"])
+@staff_required
 def mark_dose(id: int, dose_id: int) -> str:
-    Patient.query.get_or_404(id)
+    db.get_or_404(Patient, id)
     dose = MedicationDose.query.filter_by(
         id=dose_id, patient_id=id
     ).first_or_404()
     if not dose.taken:
         dose.taken = True
-        dose.taken_time = datetime.utcnow()
+        dose.taken_time = datetime.now(timezone.utc)
         db.session.commit()
         flash(f"บันทึกการกินยาวันที่ {dose.date.strftime('%Y-%m-%d')} เรียบร้อย", "success")
     else:
@@ -437,7 +441,7 @@ def mark_dose(id: int, dose_id: int) -> str:
 @app.route("/patient/<int:id>/delete", methods=["POST"])
 @staff_required
 def delete_patient(id: int) -> str:
-    patient = Patient.query.get_or_404(id)
+    patient = db.get_or_404(Patient, id)
     MedicationDose.query.filter_by(patient_id=id).delete()
     db.session.delete(patient)
     db.session.commit()
@@ -453,7 +457,7 @@ def delete_patient(id: int) -> str:
 @staff_required
 def edit_dose(id: int, dose_id: int) -> str:
     """Pharmacist edits a single dose's medications."""
-    patient = Patient.query.get_or_404(id)
+    patient = db.get_or_404(Patient, id)
     dose = MedicationDose.query.filter_by(
         id=dose_id, patient_id=id
     ).first_or_404()
@@ -485,7 +489,7 @@ def edit_dose(id: int, dose_id: int) -> str:
 @staff_required
 def extend_schedule(id: int) -> str:
     """Pharmacist adds more days or adjusts medication for remaining doses."""
-    patient = Patient.query.get_or_404(id)
+    patient = db.get_or_404(Patient, id)
 
     last_dose = MedicationDose.query.filter_by(
         patient_id=patient.id
@@ -575,13 +579,94 @@ def extend_schedule(id: int) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Unmark dose (staff only)
+# ---------------------------------------------------------------------------
+
+@app.route("/patient/<int:id>/unmark/<int:dose_id>", methods=["POST"])
+@staff_required
+def unmark_dose(id: int, dose_id: int) -> str:
+    db.get_or_404(Patient, id)
+    dose = MedicationDose.query.filter_by(id=dose_id, patient_id=id).first_or_404()
+    dose.taken = False
+    dose.taken_time = None
+    db.session.commit()
+    flash(f"ยกเลิกการกินยาวันที่ {dose.date.strftime('%Y-%m-%d')} เรียบร้อย", "success")
+    return redirect(url_for("view_patient", id=id))
+
+
+# ---------------------------------------------------------------------------
+# Update weight + recalculate regimen (staff only)
+# ---------------------------------------------------------------------------
+
+@app.route("/patient/<int:id>/update_weight", methods=["POST"])
+@staff_required
+def update_weight(id: int) -> str:
+    patient = db.get_or_404(Patient, id)
+    try:
+        new_weight = float(request.form.get("weight", "").strip())
+        if new_weight <= 0:
+            raise ValueError
+    except ValueError:
+        flash("น้ำหนักไม่ถูกต้อง", "danger")
+        return redirect(url_for("view_patient", id=id))
+
+    patient.weight = new_weight
+    db.session.commit()
+
+    if not patient.custom_regimen:
+        today = date.today()
+        new_regimen = calculate_regimen(new_weight)
+        db.session.execute(
+            MedicationDose.__table__.update()
+            .where(MedicationDose.__table__.c.patient_id == patient.id)
+            .where(MedicationDose.__table__.c.date >= today)
+            .where(MedicationDose.__table__.c.taken == False)
+            .values(medications_json=json.dumps(new_regimen))
+        )
+        db.session.commit()
+        flash(f"อัปเดตน้ำหนัก {new_weight} kg และคำนวณยาใหม่เรียบร้อย", "success")
+    else:
+        flash(f"อัปเดตน้ำหนัก {new_weight} kg (สูตรยาเฉพาะไม่เปลี่ยนแปลง)", "info")
+
+    return redirect(url_for("view_patient", id=id))
+
+
+# ---------------------------------------------------------------------------
+# Export CSV (staff only)
+# ---------------------------------------------------------------------------
+
+@app.route("/patient/<int:id>/export_csv")
+@staff_required
+def export_csv(id: int):
+    patient = db.get_or_404(Patient, id)
+    doses = MedicationDose.query.filter_by(patient_id=id).order_by(MedicationDose.date).all()
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["วันที่", "รายการยา", "สถานะ", "เวลาที่กิน"])
+    for dose in doses:
+        meds_str = ", ".join(f"{k}: {v}" for k, v in dose.medications.items())
+        status = "กินแล้ว" if dose.taken else "ยังไม่ได้กิน"
+        taken_time = dose.taken_time.strftime("%Y-%m-%d %H:%M") if dose.taken_time else ""
+        writer.writerow([dose.date.strftime("%Y-%m-%d"), meds_str, status, taken_time])
+    output.seek(0)
+    filename = f"patient_{patient.hn}_{date.today()}.csv"
+    return send_file(
+        BytesIO(output.getvalue().encode("utf-8-sig")),
+        mimetype="text/csv",
+        as_attachment=True,
+        download_name=filename,
+    )
+
+
+# ---------------------------------------------------------------------------
 # QR & Scan — 1 QR per patient
 # ---------------------------------------------------------------------------
 
 @app.route("/qr/patient/<int:patient_id>.png")
+@staff_required
 def qr_code_patient(patient_id: int):
     """Serve a single QR code image for a patient."""
-    patient = Patient.query.get_or_404(patient_id)
+    patient = db.get_or_404(Patient, patient_id)
     scan_url = url_for("scan_patient", token=patient.scan_token, _external=True)
     img_bytes = create_qr_code(scan_url)
     return send_file(
@@ -593,9 +678,10 @@ def qr_code_patient(patient_id: int):
 
 
 @app.route("/qr_page/<int:patient_id>")
+@staff_required
 def qr_code_page(patient_id: int) -> str:
     """Show QR code page for a patient (single QR for all doses)."""
-    patient = Patient.query.get_or_404(patient_id)
+    patient = db.get_or_404(Patient, patient_id)
     return render_template("qr.html", patient=patient)
 
 
@@ -615,7 +701,7 @@ def scan_patient(token: str) -> str:
 
     if request.method == "POST" and today_dose and not today_dose.taken:
         today_dose.taken = True
-        today_dose.taken_time = datetime.utcnow()
+        today_dose.taken_time = datetime.now(timezone.utc)
         db.session.commit()
 
     # Recent 7 days history
@@ -650,6 +736,7 @@ def staff_login() -> str:
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
         if username == STAFF_USERNAME and check_password_hash(STAFF_PASSWORD_HASH, password):
+            session.permanent = True
             session["staff_logged_in"] = True
             session["staff_user"] = username
             flash("เข้าสู่ระบบสำเร็จ", "success")
