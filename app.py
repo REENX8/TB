@@ -514,19 +514,19 @@ def extend_schedule(id: int) -> str:
                 regimen = current_meds
 
             start = last_date + timedelta(days=1)
-            meds_json = json.dumps(regimen)
+             meds_json = json.dumps(regimen)
             rows = [
-    {
-        "patient_id": patient.id,
-        "date": start + timedelta(days=i),
-        "medications_json": meds_json,
-        "taken": False,
-        "taken_time": None,
-    }
-    for i in range(extra_days)
-]
-db.session.execute(MedicationDose.__table__.insert(), rows)
-db.session.commit()
+                {
+                    "patient_id": patient.id,
+                    "date": start + timedelta(days=i),
+                    "medications_json": meds_json,
+                    "taken": False,
+                    "taken_time": None,
+                }
+                for i in range(extra_days)
+            ]
+            db.session.execute(MedicationDose.__table__.insert(), rows)
+            db.session.commit()
             flash(f"เพิ่ม {extra_days} วัน (ตั้งแต่ {start.strftime('%Y-%m-%d')})", "success")
 
         elif action == "update_future":
@@ -543,23 +543,18 @@ db.session.commit()
                         pass
             if regimen:
                 today = date.today()
-                future_doses = MedicationDose.query.filter(
-                    MedicationDose.patient_id == patient.id,
-                    MedicationDose.date >= today,
-                    MedicationDose.taken == False,
-                ).all()
-            db.session.execute(
-                MedicationDose.__table__.update()
-                .where(MedicationDose.patient_id == patient.id)
-                .where(MedicationDose.date >= today)
-                .where(MedicationDose.taken == False),
-                {"medications_json": json.dumps(regimen)}
-            )
-            db.session.commit()
-                flash(f"อัปเดตยาสำหรับ {len(future_doses)} วันที่เหลือ", "success")
+                updated = db.session.execute(
+                    MedicationDose.__table__.update()
+                    .where(MedicationDose.__table__.c.patient_id == patient.id)
+                    .where(MedicationDose.__table__.c.date >= today)
+                    .where(MedicationDose.__table__.c.taken == False)
+                    .values(medications_json=json.dumps(regimen))
+                )
+                db.session.commit()
+                flash(f"อัปเดตยาสำหรับ {updated.rowcount} วันที่เหลือ", "success")
             else:
                 flash("กรุณาระบุยาอย่างน้อย 1 รายการ", "danger")
-
+                
         return redirect(url_for("view_patient", id=id))
 
     return render_template(
