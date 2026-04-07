@@ -167,19 +167,21 @@ def make_patient_token(patient_id: int) -> str:
 
 def generate_schedule(patient: Patient, days: int = 180,
                       regimen: dict = None) -> None:
-    """Generate medication schedule. Uses custom regimen if provided."""
     MedicationDose.query.filter_by(patient_id=patient.id).delete()
     if regimen is None:
         regimen = calculate_regimen(patient.weight)
-    for i in range(days):
-        scheduled_date = patient.start_date + timedelta(days=i)
-        dose = MedicationDose(
-            patient_id=patient.id,
-            date=scheduled_date,
-            taken=False,
-        )
-        dose.medications = regimen
-        db.session.add(dose)
+    meds_json = json.dumps(regimen)
+    rows = [
+        {
+            "patient_id": patient.id,
+            "date": patient.start_date + timedelta(days=i),
+            "medications_json": meds_json,
+            "taken": False,
+            "taken_time": None,
+        }
+        for i in range(days)
+    ]
+    db.session.execute(MedicationDose.__table__.insert(), rows)
     db.session.commit()
 
 
@@ -512,14 +514,19 @@ def extend_schedule(id: int) -> str:
                 regimen = current_meds
 
             start = last_date + timedelta(days=1)
-            for i in range(extra_days):
-                d = start + timedelta(days=i)
-                dose = MedicationDose(
-                    patient_id=patient.id, date=d, taken=False,
-                )
-                dose.medications = regimen
-                db.session.add(dose)
-            db.session.commit()
+            meds_json = json.dumps(regimen)
+            rows = [
+    {
+        "patient_id": patient.id,
+        "date": start + timedelta(days=i),
+        "medications_json": meds_json,
+        "taken": False,
+        "taken_time": None,
+    }
+    for i in range(extra_days)
+]
+db.session.execute(MedicationDose.__table__.insert(), rows)
+db.session.commit()
             flash(f"เพิ่ม {extra_days} วัน (ตั้งแต่ {start.strftime('%Y-%m-%d')})", "success")
 
         elif action == "update_future":
@@ -541,9 +548,14 @@ def extend_schedule(id: int) -> str:
                     MedicationDose.date >= today,
                     MedicationDose.taken == False,
                 ).all()
-                for d in future_doses:
-                    d.medications = regimen
-                db.session.commit()
+            db.session.execute(
+                MedicationDose.__table__.update()
+                .where(MedicationDose.patient_id == patient.id)
+                .where(MedicationDose.date >= today)
+                .where(MedicationDose.taken == False),
+                {"medications_json": json.dumps(regimen)}
+            )
+            db.session.commit()
                 flash(f"อัปเดตยาสำหรับ {len(future_doses)} วันที่เหลือ", "success")
             else:
                 flash("กรุณาระบุยาอย่างน้อย 1 รายการ", "danger")
