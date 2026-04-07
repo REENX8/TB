@@ -427,6 +427,7 @@ def mark_dose(id: int, dose_id: int) -> str:
 @app.route("/patient/<int:id>/delete", methods=["POST"])
 def delete_patient(id: int) -> str:
     patient = Patient.query.get_or_404(id)
+    MedicationDose.query.filter_by(patient_id=id).delete()
     db.session.delete(patient)
     db.session.commit()
     flash(f"ลบผู้ป่วย {patient.name} เรียบร้อย", "success")
