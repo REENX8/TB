@@ -113,17 +113,6 @@ with app.app_context():
 # Medication regimen with mg dosages
 # ---------------------------------------------------------------------------
 
-# Drug info: name -> mg per tablet
-DRUG_INFO = {
-    "INH": {"mg": 100},
-    "Rifampicin 300mg": {"mg": 300},
-    "Rifampicin 450mg": {"mg": 450},
-    "PZA": {"mg": 500},
-    "EMB 400mg": {"mg": 400},
-    "EMB 500mg": {"mg": 500},
-}
-
-
 def calculate_regimen(weight: float) -> dict:
     """Return medication regimen with tablet counts.
 
@@ -427,6 +416,7 @@ def mark_dose(id: int, dose_id: int) -> str:
 
 
 @app.route("/patient/<int:id>/delete", methods=["POST"])
+@staff_required
 def delete_patient(id: int) -> str:
     patient = Patient.query.get_or_404(id)
     MedicationDose.query.filter_by(patient_id=id).delete()
@@ -644,7 +634,9 @@ def staff_login() -> str:
             session["staff_logged_in"] = True
             session["staff_user"] = username
             flash("เข้าสู่ระบบสำเร็จ", "success")
-            next_url = request.args.get("next") or url_for("dashboard")
+            next_url = request.args.get("next") or ""
+            if not next_url or not next_url.startswith("/"):
+                next_url = url_for("dashboard")
             return redirect(next_url)
         else:
             flash("ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง", "danger")
