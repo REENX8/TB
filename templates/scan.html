@@ -25,17 +25,36 @@
       padding: 24px 20px 16px;
       text-align: center;
     }
-    .pill-list {
+    .drug-grid {
       display: flex;
       flex-wrap: wrap;
-      gap: 8px;
+      gap: 12px;
       justify-content: center;
     }
-    .pill-item {
+    .drug-card {
       background: #e8f5e9;
-      border-radius: 20px;
-      padding: 6px 14px;
-      font-size: 0.95rem;
+      border-radius: 12px;
+      padding: 10px 12px 8px;
+      text-align: center;
+      width: 110px;
+    }
+    .drug-card img {
+      width: 72px;
+      height: 72px;
+      object-fit: contain;
+      border-radius: 8px;
+      background: #fff;
+    }
+    .drug-card .drug-name {
+      font-size: 0.72rem;
+      color: #444;
+      margin-top: 4px;
+      line-height: 1.2;
+    }
+    .drug-card .drug-count {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #1b5e20;
     }
     .confirm-btn {
       width: 100%;
@@ -57,9 +76,13 @@
       <p class="text-muted mb-1">{{ patient.name }}</p>
       <p class="mb-1"><strong>วันที่:</strong> {{ today.strftime('%d/%m/%Y') }}</p>
       <p class="mb-3"><strong>เวลา:</strong> {{ today_dose.taken_time.strftime('%H:%M น.') if today_dose.taken_time else '-' }}</p>
-      <div class="pill-list mb-3">
+      <div class="drug-grid mb-3">
         {% for name, count in today_dose.medications.items() %}
-        <span class="pill-item">{{ name }} {{ count }} เม็ด</span>
+        <div class="drug-card">
+          <img src="{{ url_for('static', filename=drug_images.get(name, 'drugs/inh_100mg.jpg')) }}" alt="{{ name }}">
+          <div class="drug-name">{{ name }}</div>
+          <div class="drug-count">{{ count }} เม็ด</div>
+        </div>
         {% endfor %}
       </div>
       <p class="text-success fw-bold mb-0">กินยาครบแล้ววันนี้ ขอบคุณที่รักษาต่อเนื่อง</p>
@@ -75,9 +98,13 @@
       <p class="fs-5 mb-1"><strong>วันที่:</strong> {{ today.strftime('%d/%m/%Y') }}</p>
       <hr>
       <p class="text-muted mb-2">รายการยาที่ต้องกินวันนี้:</p>
-      <div class="pill-list mb-4">
+      <div class="drug-grid mb-4">
         {% for name, count in today_dose.medications.items() %}
-        <span class="pill-item">{{ name }} {{ count }} เม็ด</span>
+        <div class="drug-card">
+          <img src="{{ url_for('static', filename=drug_images.get(name, 'drugs/inh_100mg.jpg')) }}" alt="{{ name }}">
+          <div class="drug-name">{{ name }}</div>
+          <div class="drug-count">{{ count }} เม็ด</div>
+        </div>
         {% endfor %}
       </div>
       <form method="post">
