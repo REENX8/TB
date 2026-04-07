@@ -792,8 +792,18 @@ def inject_helpers():
         return dt.strftime("%Y-%m-%d") if dt else ""
     def format_datetime(dt: datetime) -> str:
         return dt.strftime("%Y-%m-%d %H:%M:%S") if dt else ""
-    return dict(format_date=format_date, format_datetime=format_datetime, date=date)
+    return dict(format_date=format_date, format_datetime=format_datetime, date=date,
+                drug_images=DRUG_IMAGES)
 
+
+DRUG_IMAGES = {
+    "INH 100mg": "drugs/inh_100mg.jpg",
+    "Rifampicin 300mg": "drugs/rifampicin_300mg.jpg",
+    "Rifampicin 450mg": "drugs/rifampicin_450mg.jpg",
+    "PZA 500mg": "drugs/pza_500mg.jpg",
+    "EMB 400mg": "drugs/emb_400mg.jpg",
+    "EMB 500mg": "drugs/emb_500mg.jpg",
+}
 
 THAI_MONTHS = [
     "", "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.",
