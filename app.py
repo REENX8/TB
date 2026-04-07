@@ -514,7 +514,7 @@ def extend_schedule(id: int) -> str:
                 regimen = current_meds
 
             start = last_date + timedelta(days=1)
-             meds_json = json.dumps(regimen)
+            meds_json = json.dumps(regimen)
             rows = [
                 {
                     "patient_id": patient.id,
