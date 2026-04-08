@@ -201,13 +201,13 @@
   <ul class="pagination pagination-sm justify-content-center">
     {% if pagination.has_prev %}
     <li class="page-item">
-      <a class="page-link" href="{{ url_for('view_patient', id=patient.id, page=pagination.prev_num, **({'from': filter_start} if filter_start else {}), **({'to': filter_end} if filter_end else {})) }}">ก่อนหน้า</a>
+      <a class="page-link" href="{{ url_for('view_patient', id=patient.id, page=pagination.prev_num, **{'from': filter_start, 'to': filter_end}) }}">ก่อนหน้า</a>
     </li>
     {% endif %}
     {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
       {% if p %}
         <li class="page-item {% if p == pagination.page %}active{% endif %}">
-          <a class="page-link" href="{{ url_for('view_patient', id=patient.id, page=p, **({'from': filter_start} if filter_start else {}), **({'to': filter_end} if filter_end else {})) }}">{{ p }}</a>
+          <a class="page-link" href="{{ url_for('view_patient', id=patient.id, page=p, **{'from': filter_start, 'to': filter_end}) }}">{{ p }}</a>
         </li>
       {% else %}
         <li class="page-item disabled"><span class="page-link">...</span></li>
@@ -215,7 +215,7 @@
     {% endfor %}
     {% if pagination.has_next %}
     <li class="page-item">
-      <a class="page-link" href="{{ url_for('view_patient', id=patient.id, page=pagination.next_num, **({'from': filter_start} if filter_start else {}), **({'to': filter_end} if filter_end else {})) }}">ถัดไป</a>
+      <a class="page-link" href="{{ url_for('view_patient', id=patient.id, page=pagination.next_num, **{'from': filter_start, 'to': filter_end}) }}">ถัดไป</a>
     </li>
     {% endif %}
   </ul>

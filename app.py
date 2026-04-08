@@ -438,7 +438,7 @@ def view_patient(id: int) -> str:
         prev_year=prev_year, prev_month=prev_month,
         next_year=next_year, next_month=next_month,
         today_dose=today_dose, today=today, stats=stats,
-        filter_start=filter_start or "", filter_end=filter_end or "",
+        filter_start=filter_start or None, filter_end=filter_end or None,
     )
 
 
