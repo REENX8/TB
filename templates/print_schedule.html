@@ -4,36 +4,28 @@
   <meta charset="utf-8">
   <title>ตารางยา — {{ patient.name }}</title>
   <style>
-    * { box-sizing: border-box; }
-    body { font-family: sans-serif; font-size: 11pt; margin: 16mm; color: #000; }
-    h2 { font-size: 14pt; margin: 0 0 4px; }
-    .info { font-size: 10pt; color: #333; margin-bottom: 12px; }
-    .info span { margin-right: 20px; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: sans-serif; font-size: 11pt; padding: 12mm 14mm; color: #000; }
+    h2 { font-size: 13pt; margin-bottom: 6px; }
+    .subheader { font-size: 10pt; color: #444; margin-bottom: 14px; }
     table { width: 100%; border-collapse: collapse; font-size: 10pt; }
-    th { background: #333; color: #fff; padding: 5px 8px; text-align: center; }
-    td { border: 1px solid #bbb; padding: 4px 8px; text-align: center; }
-    td:first-child { text-align: left; }
-    tr:nth-child(even) { background: #f5f5f5; }
-    .taken { color: #155724; font-weight: bold; }
-    .missed { color: #721c24; }
-    .pending { color: #666; }
+    th { background: #222; color: #fff; padding: 5px 8px; text-align: center; }
+    td { border: 1px solid #aaa; padding: 5px 8px; }
+    td:first-child { white-space: nowrap; }
+    td.check { text-align: center; font-size: 14pt; }
+    tr:nth-child(even) { background: #f7f7f7; }
+    .footer { margin-top: 14px; font-size: 8.5pt; color: #666; border-top: 1px solid #ccc; padding-top: 6px; display: flex; justify-content: space-between; }
     @media print {
-      body { margin: 10mm; }
-      @page { size: A4 portrait; margin: 10mm; }
+      body { padding: 8mm 10mm; }
+      @page { size: A4 portrait; margin: 0; }
     }
   </style>
 </head>
 <body>
   <h2>ตารางการกินยา — {{ patient.name }}</h2>
-  <div class="info">
-    <span>HN: {{ patient.hn }}</span>
-    <span>TB No: {{ patient.tb_no }}</span>
-    <span>น้ำหนัก: {{ patient.weight }} kg</span>
-    <span>ชนิด: {{ patient.tb_type }}</span>
-    <span>เดือน:
-      {% set thai_months = ["","ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."] %}
-      {{ thai_months[month] }} {{ year }}
-    </span>
+  <div class="subheader">
+    {% set thai_months = ["","ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."] %}
+    {{ thai_months[month] }} {{ year }}
   </div>
 
   {% if doses %}
@@ -42,8 +34,7 @@
       <tr>
         <th>วันที่</th>
         {% for drug in all_drugs %}<th>{{ drug }}</th>{% endfor %}
-        <th>สถานะ</th>
-        <th>เวลา</th>
+        <th>กินแล้ว ✓</th>
       </tr>
     </thead>
     <tbody>
@@ -51,29 +42,22 @@
       <tr>
         <td>{{ dose.date.strftime('%d/%m/%Y') }}</td>
         {% for drug in all_drugs %}
-        <td>{{ dose.medications.get(drug, '-') }}</td>
+        <td style="text-align:center;">{{ dose.medications.get(drug, '-') }}</td>
         {% endfor %}
-        <td>
-          {% if dose.taken %}
-            <span class="taken">กินแล้ว</span>
-          {% elif dose.date < today %}
-            <span class="missed">ขาด</span>
-          {% else %}
-            <span class="pending">รอกิน</span>
-          {% endif %}
-        </td>
-        <td>{{ dose.taken_time.strftime('%H:%M') if dose.taken_time else '' }}</td>
+        <td class="check">□</td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
   {% else %}
-  <p>ไม่มีข้อมูลยาในเดือนนี้</p>
+  <p style="margin-top:12px;">ไม่มีข้อมูลยาในเดือนนี้</p>
   {% endif %}
 
-  <p style="margin-top:16px; font-size:9pt; color:#666;">
-    พิมพ์เมื่อ: {{ today.strftime('%d/%m/%Y') }}
-  </p>
+  <div class="footer">
+    <span>TB Medication Tracker</span>
+    <span>พิมพ์เมื่อ {{ today.strftime('%d/%m/%Y') }}</span>
+  </div>
+
   <script>window.addEventListener('load', () => window.print());</script>
 </body>
 </html>
