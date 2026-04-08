@@ -45,9 +45,9 @@ python app.py
 |---|---|---|
 | `SECRET_KEY` | `your-random-secret` | Flask session key (สำคัญมาก) |
 | `DATABASE_URL` | `postgresql://...` | PostgreSQL URL (ถ้าไม่ตั้งใช้ SQLite) |
-| `STAFF_USER` | `REEN` | username account หลัก |
+| `STAFF_USER` | `ABCD` | username account หลัก |
 | `STAFF_PASS_HASH` | `scrypt:...` | password hash account หลัก |
-| `STAFF_USER_2` | `faosiyah` | username account ที่ 2 (optional) |
+| `STAFF_USER_2` | `DEFG` | username account ที่ 2 (optional) |
 | `STAFF_PASS_HASH_2` | `scrypt:...` | password hash account ที่ 2 |
 | `STAFF_USER_3` | `...` | เพิ่ม account ต่อไปได้เรื่อย ๆ |
 
