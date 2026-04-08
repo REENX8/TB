@@ -126,20 +126,24 @@ class MedicationDose(db.Model):
 def _run_startup_migrations():
     with db.engine.connect() as conn:
         try:
-            conn.execute(text(
-                "ALTER TABLE patients ADD COLUMN archived BOOLEAN NOT NULL DEFAULT FALSE"
-            ))
+            conn.execute(
+                text(
+                    "ALTER TABLE patients ADD COLUMN IF NOT EXISTS archived BOOLEAN NOT NULL DEFAULT FALSE"
+                )
+            )
             conn.commit()
-        except Exception:
-            pass  # column already exists
+        except Exception as e:
+            print("Migration error archived:", e)
+    
         try:
-            conn.execute(text(
-                "ALTER TABLE patients ADD COLUMN phone VARCHAR(20)"
-            ))
+            conn.execute(
+                text(
+                    "ALTER TABLE patients ADD COLUMN IF NOT EXISTS phone VARCHAR(20)"
+                )
+            )
             conn.commit()
-        except Exception:
-            pass  # column already exists
-
+        except Exception as e:
+            print("Migration error phone:", e)
 
 with app.app_context():
     _run_startup_migrations()
