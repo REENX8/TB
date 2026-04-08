@@ -8,9 +8,10 @@
   <div class="d-flex gap-2 flex-wrap">
     <a href="{{ url_for('qr_code_page', patient_id=patient.id) }}" class="btn btn-outline-dark" target="_blank">QR Code</a>
     <a href="{{ url_for('export_csv', id=patient.id) }}" class="btn btn-outline-success">Export CSV</a>
+    <a href="{{ url_for('print_schedule', id=patient.id, year=calendar_year, month=calendar_month) }}" class="btn btn-outline-secondary" target="_blank">พิมพ์ตารางยา</a>
     <a href="{{ url_for('index') }}" class="btn btn-secondary">กลับ</a>
-    <form method="post" action="{{ url_for('delete_patient', id=patient.id) }}" class="d-inline" onsubmit="return confirm('ยืนยันลบผู้ป่วย {{ patient.name }}?');">
-      <button type="submit" class="btn btn-outline-danger">ลบผู้ป่วย</button>
+    <form method="post" action="{{ url_for('archive_patient', id=patient.id) }}" class="d-inline" onsubmit="return confirm('ยืนยันเก็บประวัติผู้ป่วย {{ patient.name }}? (ยังสามารถคืนสถานะได้ภายหลัง)');">
+      <button type="submit" class="btn btn-outline-warning">เก็บประวัติ</button>
     </form>
   </div>
 </div>

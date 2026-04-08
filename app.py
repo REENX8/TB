@@ -30,7 +30,7 @@ from flask import (
     url_for,
 )
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import func, case as sa_case
+from sqlalchemy import func, case as sa_case, text
 from werkzeug.security import check_password_hash
 import qrcode
 
@@ -89,6 +89,7 @@ class Patient(db.Model):
     start_date = db.Column(db.Date, nullable=False)
     scan_token = db.Column(db.String(64), unique=True, nullable=True)
     custom_regimen = db.Column(db.Boolean, default=False, nullable=False)
+    archived = db.Column(db.Boolean, default=False, nullable=False)
     doses = db.relationship(
         "MedicationDose", backref="patient", cascade="all, delete-orphan"
     )
@@ -120,7 +121,19 @@ class MedicationDose(db.Model):
         return f"<Dose {self.id} {self.date} taken={self.taken}>"
 
 
+def _run_startup_migrations():
+    with db.engine.connect() as conn:
+        try:
+            conn.execute(text(
+                "ALTER TABLE patients ADD COLUMN archived BOOLEAN NOT NULL DEFAULT FALSE"
+            ))
+            conn.commit()
+        except Exception:
+            pass  # column already exists
+
+
 with app.app_context():
+    _run_startup_migrations()
     db.create_all()
 
 
@@ -287,20 +300,15 @@ def get_adherence_stats(patient: Patient) -> dict:
 @app.route("/")
 @staff_required
 def index() -> str:
-    patients = Patient.query.order_by(Patient.id).all()
-    patient_stats = []
     today = date.today()
-    for p in patients:
+    patient_stats = []
+    for p in Patient.query.filter_by(archived=False).order_by(Patient.id).all():
         stats = get_adherence_stats(p)
-        today_dose = MedicationDose.query.filter_by(
-            patient_id=p.id, date=today
-        ).first()
-        patient_stats.append({
-            "patient": p,
-            "stats": stats,
-            "today_dose": today_dose,
-        })
-    return render_template("index.html", patient_stats=patient_stats)
+        today_dose = MedicationDose.query.filter_by(patient_id=p.id, date=today).first()
+        patient_stats.append({"patient": p, "stats": stats, "today_dose": today_dose})
+    archived_patients = Patient.query.filter_by(archived=True).order_by(Patient.id).all()
+    return render_template("index.html", patient_stats=patient_stats,
+                           archived_patients=archived_patients)
 
 
 @app.route("/patient/new", methods=["GET", "POST"])
@@ -478,14 +486,23 @@ def edit_patient(id: int) -> str:
     return render_template("edit_patient.html", patient=patient)
 
 
-@app.route("/patient/<int:id>/delete", methods=["POST"])
+@app.route("/patient/<int:id>/archive", methods=["POST"])
 @staff_required
-def delete_patient(id: int) -> str:
+def archive_patient(id: int) -> str:
     patient = db.get_or_404(Patient, id)
-    MedicationDose.query.filter_by(patient_id=id).delete()
-    db.session.delete(patient)
+    patient.archived = True
     db.session.commit()
-    flash(f"ลบผู้ป่วย {patient.name} เรียบร้อย", "success")
+    flash(f"เก็บประวัติผู้ป่วย {patient.name} เรียบร้อย (ยังสามารถคืนสถานะได้)", "info")
+    return redirect(url_for("index"))
+
+
+@app.route("/patient/<int:id>/restore", methods=["POST"])
+@staff_required
+def restore_patient(id: int) -> str:
+    patient = db.get_or_404(Patient, id)
+    patient.archived = False
+    db.session.commit()
+    flash(f"คืนสถานะผู้ป่วย {patient.name} เรียบร้อย", "success")
     return redirect(url_for("index"))
 
 
@@ -765,6 +782,29 @@ def scan_patient(token: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Print schedule
+# ---------------------------------------------------------------------------
+
+@app.route("/patient/<int:id>/print")
+@staff_required
+def print_schedule(id: int):
+    patient = db.get_or_404(Patient, id)
+    today = date.today()
+    year = request.args.get("year", today.year, type=int)
+    month = request.args.get("month", today.month, type=int)
+    _, last_day = monthrange(year, month)
+    doses = MedicationDose.query.filter(
+        MedicationDose.patient_id == id,
+        MedicationDose.date >= date(year, month, 1),
+        MedicationDose.date <= date(year, month, last_day),
+    ).order_by(MedicationDose.date).all()
+    all_drugs = list(dict.fromkeys(k for d in doses for k in d.medications))
+    return render_template("print_schedule.html",
+        patient=patient, doses=doses, all_drugs=all_drugs,
+        year=year, month=month, today=today)
+
+
+# ---------------------------------------------------------------------------
 # Auth routes
 # ---------------------------------------------------------------------------
 
@@ -801,7 +841,7 @@ def staff_logout() -> str:
 @app.route("/dashboard")
 @staff_required
 def dashboard() -> str:
-    patients = Patient.query.order_by(Patient.id).all()
+    patients = Patient.query.filter_by(archived=False).order_by(Patient.id).all()
     today = date.today()
     rows = []
     total_overdue_all = 0

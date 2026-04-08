@@ -58,4 +58,35 @@
 {% else %}
 <div class="alert alert-secondary">ยังไม่มีผู้ป่วยในระบบ กดปุ่ม "เพิ่มผู้ป่วย" เพื่อเริ่มต้น</div>
 {% endif %}
+
+{% if archived_patients %}
+<details class="mt-4">
+  <summary class="text-muted" style="cursor:pointer;">
+    <strong>ประวัติผู้ป่วยที่เก็บไว้ ({{ archived_patients|length }} ราย)</strong>
+  </summary>
+  <div class="table-responsive mt-2">
+    <table class="table table-sm table-bordered align-middle">
+      <thead class="table-secondary">
+        <tr><th>ID</th><th>ชื่อ</th><th>HN</th><th>วันเริ่ม</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for p in archived_patients %}
+        <tr class="text-muted">
+          <td>{{ p.id }}</td>
+          <td>{{ p.name }}</td>
+          <td>{{ p.hn }}</td>
+          <td>{{ p.start_date.strftime('%Y-%m-%d') }}</td>
+          <td>
+            <a href="{{ url_for('view_patient', id=p.id) }}" class="btn btn-sm btn-outline-secondary">ดู</a>
+            <form method="post" action="{{ url_for('restore_patient', id=p.id) }}" class="d-inline">
+              <button type="submit" class="btn btn-sm btn-outline-success">คืนสถานะ</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</details>
+{% endif %}
 {% endblock %}
