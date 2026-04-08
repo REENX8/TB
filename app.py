@@ -45,11 +45,11 @@ app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=8)
 app.secret_key = os.environ.get("SECRET_KEY", "change_this_secret")
 db = SQLAlchemy(app)
 
-STAFF_USERNAME = os.environ.get("STAFF_USER", "REEN")
-STAFF_PASSWORD_HASH = os.environ.get(
-    "STAFF_PASS_HASH",
-    "scrypt:32768:8:1$lYS9DAFUtGkNDbY5$10b7a5f05d5244417e8bb34c6848b6a016b9ae0cad769814db43d87d310b57b5910fabbb719c43d15e4b615791284c01d165bb0d74b38abd5db0468165a7c91d",
-)
+STAFF_USERNAME = os.environ.get("STAFF_USER")
+STAFF_PASSWORD_HASH = os.environ.get("STAFF_PASS_HASH")
+
+if not STAFF_USERNAME or not STAFF_PASSWORD_HASH:
+    raise RuntimeError("Missing staff credentials")
 
 # Build list of valid staff accounts from env vars
 # STAFF_USER_2, STAFF_PASS_HASH_2 (and so on) for additional accounts
