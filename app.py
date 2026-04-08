@@ -612,6 +612,34 @@ def extend_schedule(id: int) -> str:
             db.session.commit()
             flash(f"เพิ่ม {extra_days} วัน (ตั้งแต่ {start.strftime('%Y-%m-%d')})", "success")
 
+        elif action == "remove_days":
+            remove_days_str = request.form.get("remove_days", "1").strip()
+            try:
+                remove_days = int(remove_days_str)
+                if remove_days < 1:
+                    raise ValueError
+            except ValueError:
+                flash("จำนวนวันไม่ถูกต้อง", "danger")
+                return redirect(url_for("extend_schedule", id=id))
+
+            # Delete the last N untaken future doses (from the end of the schedule)
+            future_untaken = (
+                MedicationDose.query
+                .filter_by(patient_id=patient.id, taken=False)
+                .filter(MedicationDose.date >= date.today())
+                .order_by(MedicationDose.date.desc())
+                .limit(remove_days)
+                .all()
+            )
+            if not future_untaken:
+                flash("ไม่มีวันที่สามารถลดได้ (ต้องเป็นวันที่ยังไม่ได้กินและยังไม่ถึง)", "warning")
+                return redirect(url_for("extend_schedule", id=id))
+            actual = len(future_untaken)
+            for dose in future_untaken:
+                db.session.delete(dose)
+            db.session.commit()
+            flash(f"ลด {actual} วันออกจากตารางยาแล้ว", "success")
+
         elif action == "update_future":
             # Update all future untaken doses with new medications
             regimen = {}
@@ -640,11 +668,16 @@ def extend_schedule(id: int) -> str:
                 
         return redirect(url_for("view_patient", id=id))
 
+    removable_days = MedicationDose.query.filter_by(
+        patient_id=patient.id, taken=False
+    ).filter(MedicationDose.date >= date.today()).count()
+
     return render_template(
         "extend_schedule.html",
         patient=patient,
         last_date=last_date,
         current_meds=current_meds,
+        removable_days=removable_days,
     )
 
 
