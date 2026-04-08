@@ -45,7 +45,36 @@
   </div>
 </div>
 
-{# ===== Section 2: Update future doses ===== #}
+{# ===== Section 2: Remove days ===== #}
+<div class="card mb-4 border-danger">
+  <div class="card-header bg-danger text-white"><strong>ลดวันกินยา</strong></div>
+  <div class="card-body">
+    <p class="text-muted mb-1">
+      ลบวันล่าสุดออกจากตาราง (เฉพาะวันที่ยังไม่ได้กินและยังไม่ถึง)
+    </p>
+    <p class="mb-3">วันที่สามารถลดได้: <strong>{{ removable_days }} วัน</strong></p>
+    {% if removable_days > 0 %}
+    <form method="post"
+          onsubmit="return confirm('ยืนยันลด ' + document.getElementById('remove_days_input').value + ' วันสุดท้ายออกจากตาราง?')">
+      <input type="hidden" name="action" value="remove_days" />
+      <div class="row g-2 align-items-end">
+        <div class="col-auto">
+          <label class="form-label">จำนวนวันที่ลด</label>
+          <input type="number" id="remove_days_input" class="form-control" name="remove_days"
+                 value="1" min="1" max="{{ removable_days }}" style="width:100px;" required />
+        </div>
+        <div class="col-auto">
+          <button type="submit" class="btn btn-danger">ลดวัน</button>
+        </div>
+      </div>
+    </form>
+    {% else %}
+    <p class="text-muted">ไม่มีวันที่สามารถลดได้ในขณะนี้</p>
+    {% endif %}
+  </div>
+</div>
+
+{# ===== Section 3: Update future doses ===== #}
 <div class="card mb-4">
   <div class="card-header"><strong>เปลี่ยนยาสำหรับวันที่เหลือทั้งหมด</strong></div>
   <div class="card-body">
