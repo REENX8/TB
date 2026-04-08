@@ -67,6 +67,7 @@
           <div class="progress-bar {% if stats.adherence_pct >= 90 %}bg-success{% elif stats.adherence_pct >= 70 %}bg-warning{% else %}bg-danger{% endif %}" style="width: {{ stats.adherence_pct }}%;"></div>
         </div>
         <hr>
+        <a href="{{ url_for('edit_patient', id=patient.id) }}" class="btn btn-sm btn-outline-secondary w-100 mb-2">แก้ไขข้อมูลผู้ป่วย</a>
         <a href="{{ url_for('extend_schedule', id=patient.id) }}" class="btn btn-sm btn-outline-primary w-100 mb-2">จัดการตารางยา / เพิ่มวัน</a>
         <form method="post" action="{{ url_for('update_weight', id=patient.id) }}" class="d-flex gap-1">
           <input type="number" name="weight" step="0.1" min="1" value="{{ patient.weight }}" class="form-control form-control-sm" style="width:90px;" required>

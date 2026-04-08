@@ -450,6 +450,34 @@ def mark_dose(id: int, dose_id: int) -> str:
     return redirect(url_for("view_patient", id=id))
 
 
+@app.route("/patient/<int:id>/edit", methods=["GET", "POST"])
+@staff_required
+def edit_patient(id: int) -> str:
+    patient = db.get_or_404(Patient, id)
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        hn = request.form.get("hn", "").strip()
+        tb_no = request.form.get("tb_no", "").strip()
+        tb_type = request.form.get("tb_type", "").strip()
+        try:
+            age_val = int(request.form.get("age", "0"))
+        except ValueError:
+            flash("ค่าตัวเลขไม่ถูกต้อง", "danger")
+            return render_template("edit_patient.html", patient=patient)
+        if not all([name, hn, tb_no, tb_type]):
+            flash("กรุณากรอกข้อมูลให้ครบ", "danger")
+            return render_template("edit_patient.html", patient=patient)
+        patient.name = name
+        patient.hn = hn
+        patient.tb_no = tb_no
+        patient.tb_type = tb_type
+        patient.age = age_val
+        db.session.commit()
+        flash("แก้ไขข้อมูลผู้ป่วยเรียบร้อย", "success")
+        return redirect(url_for("view_patient", id=id))
+    return render_template("edit_patient.html", patient=patient)
+
+
 @app.route("/patient/<int:id>/delete", methods=["POST"])
 @staff_required
 def delete_patient(id: int) -> str:
