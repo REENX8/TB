@@ -51,6 +51,18 @@ STAFF_PASSWORD_HASH = os.environ.get(
     "scrypt:32768:8:1$lYS9DAFUtGkNDbY5$10b7a5f05d5244417e8bb34c6848b6a016b9ae0cad769814db43d87d310b57b5910fabbb719c43d15e4b615791284c01d165bb0d74b38abd5db0468165a7c91d",
 )
 
+# Build list of valid staff accounts from env vars
+# STAFF_USER_2, STAFF_PASS_HASH_2 (and so on) for additional accounts
+STAFF_ACCOUNTS = {STAFF_USERNAME: STAFF_PASSWORD_HASH}
+_i = 2
+while True:
+    _u = os.environ.get(f"STAFF_USER_{_i}")
+    _h = os.environ.get(f"STAFF_PASS_HASH_{_i}")
+    if not _u or not _h:
+        break
+    STAFF_ACCOUNTS[_u] = _h
+    _i += 1
+
 
 def staff_required(f):
     @wraps(f)
@@ -735,7 +747,8 @@ def staff_login() -> str:
     if request.method == "POST":
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
-        if username == STAFF_USERNAME and check_password_hash(STAFF_PASSWORD_HASH, password):
+        _hash = STAFF_ACCOUNTS.get(username)
+        if _hash and check_password_hash(_hash, password):
             session.permanent = True
             session["staff_logged_in"] = True
             session["staff_user"] = username
