@@ -19,6 +19,12 @@ from io import BytesIO, StringIO
 from calendar import monthrange
 from urllib.parse import urlparse
 
+TZ_THAI = timezone(timedelta(hours=7))
+
+def today_th() -> date:
+    """Return current date in Thailand timezone (UTC+7)."""
+    return datetime.now(TZ_THAI).date()
+
 from flask import (
     Flask,
     abort,
@@ -249,7 +255,7 @@ def build_calendar(patient: Patient, year: int, month: int) -> list:
     ).all()
     doses_by_date = {dose.date: dose for dose in doses_in_month}
 
-    today = date.today()
+    today = today_th()
     calendar = []
     start_weekday = first_of_month.weekday()
     for _ in range(start_weekday):
@@ -283,7 +289,7 @@ def create_qr_code(data: str) -> bytes:
 
 
 def get_adherence_stats(patient: Patient) -> dict:
-    today = date.today()
+    today = today_th()
     row = db.session.query(
         func.count(MedicationDose.id).label("total_all"),
         func.sum(sa_case((MedicationDose.date <= today, 1), else_=0)).label("total_past"),
@@ -313,7 +319,7 @@ def get_adherence_stats(patient: Patient) -> dict:
 @app.route("/")
 @staff_required
 def index() -> str:
-    today = date.today()
+    today = today_th()
     patient_stats = []
     for p in Patient.query.filter_by(archived=False).order_by(Patient.id).all():
         stats = get_adherence_stats(p)
@@ -398,7 +404,7 @@ def new_patient() -> str:
 @staff_required
 def view_patient(id: int) -> str:
     patient = db.get_or_404(Patient, id)
-    today = date.today()
+    today = today_th()
 
     try:
         cal_year = int(request.args.get("year", today.year))
@@ -644,7 +650,7 @@ def extend_schedule(id: int) -> str:
             future_untaken = (
                 MedicationDose.query
                 .filter_by(patient_id=patient.id, taken=False)
-                .filter(MedicationDose.date >= date.today())
+                .filter(MedicationDose.date >= today_th())
                 .order_by(MedicationDose.date.desc())
                 .limit(remove_days)
                 .all()
@@ -671,7 +677,7 @@ def extend_schedule(id: int) -> str:
                     except ValueError:
                         pass
             if regimen:
-                today = date.today()
+                today = today_th()
                 updated = db.session.execute(
                     MedicationDose.__table__.update()
                     .where(MedicationDose.__table__.c.patient_id == patient.id)
@@ -688,7 +694,7 @@ def extend_schedule(id: int) -> str:
 
     removable_days = MedicationDose.query.filter_by(
         patient_id=patient.id, taken=False
-    ).filter(MedicationDose.date >= date.today()).count()
+    ).filter(MedicationDose.date >= today_th()).count()
 
     return render_template(
         "extend_schedule.html",
@@ -735,7 +741,7 @@ def update_weight(id: int) -> str:
     db.session.commit()
 
     if not patient.custom_regimen:
-        today = date.today()
+        today = today_th()
         new_regimen = calculate_regimen(new_weight)
         db.session.execute(
             MedicationDose.__table__.update()
@@ -770,7 +776,7 @@ def export_csv(id: int):
         taken_time = dose.taken_time.strftime("%Y-%m-%d %H:%M") if dose.taken_time else ""
         writer.writerow([dose.date.strftime("%Y-%m-%d"), meds_str, status, taken_time])
     output.seek(0)
-    filename = f"patient_{patient.hn}_{date.today()}.csv"
+    filename = f"patient_{patient.hn}_{today_th()}.csv"
     return send_file(
         BytesIO(output.getvalue().encode("utf-8-sig")),
         mimetype="text/csv",
@@ -810,7 +816,7 @@ def qr_code_page(patient_id: int) -> str:
 def scan_patient(token: str) -> str:
     """Mobile page opened when patient scans their QR code."""
     patient = Patient.query.filter_by(scan_token=token).first_or_404()
-    today = date.today()
+    today = today_th()
 
     today_dose = MedicationDose.query.filter_by(
         patient_id=patient.id, date=today
@@ -857,7 +863,7 @@ def scan_patient(token: str) -> str:
 @staff_required
 def print_schedule(id: int):
     patient = db.get_or_404(Patient, id)
-    today = date.today()
+    today = today_th()
     year = request.args.get("year", today.year, type=int)
     month = request.args.get("month", today.month, type=int)
     _, last_day = monthrange(year, month)
@@ -911,7 +917,7 @@ def staff_logout() -> str:
 @staff_required
 def dashboard() -> str:
     patients = Patient.query.filter_by(archived=False).order_by(Patient.id).all()
-    today = date.today()
+    today = today_th()
     rows = []
     total_overdue_all = 0
     for p in patients:
@@ -943,7 +949,7 @@ def inject_helpers():
     def format_datetime(dt: datetime) -> str:
         return dt.strftime("%Y-%m-%d %H:%M:%S") if dt else ""
     return dict(format_date=format_date, format_datetime=format_datetime, date=date,
-                drug_images=DRUG_IMAGES)
+                today_th=today_th, drug_images=DRUG_IMAGES)
 
 
 DRUG_IMAGES = {
