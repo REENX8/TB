@@ -350,6 +350,8 @@ def new_patient() -> str:
         try:
             age_val = int(age)
             weight_val = float(weight)
+            if weight_val <= 0:
+                raise ValueError
             days_of_medication = int(days_str)
         except ValueError:
             flash("ค่าตัวเลขไม่ถูกต้อง", "danger")

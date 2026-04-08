@@ -52,7 +52,8 @@
     <p class="text-muted mb-1">
       ลบวันล่าสุดออกจากตาราง (เฉพาะวันที่ยังไม่ได้กินและยังไม่ถึง)
     </p>
-    <p class="mb-3">วันที่สามารถลดได้: <strong>{{ removable_days }} วัน</strong></p>
+    <p class="mb-1">วันที่สามารถลดได้: <strong>{{ removable_days }} วัน</strong></p>
+    <p class="mb-3 text-muted small">วันสุดท้ายในตาราง: <strong>{{ last_date.strftime('%Y-%m-%d') }}</strong> — การลดวันจะลบจากวันนี้ย้อนขึ้นไป</p>
     {% if removable_days > 0 %}
     <form method="post"
           onsubmit="return confirm('ยืนยันลด ' + document.getElementById('remove_days_input').value + ' วันสุดท้ายออกจากตาราง?')">

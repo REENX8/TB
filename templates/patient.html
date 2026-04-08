@@ -10,11 +10,22 @@
     <a href="{{ url_for('export_csv', id=patient.id) }}" class="btn btn-outline-success">Export CSV</a>
     <a href="{{ url_for('print_schedule', id=patient.id, year=calendar_year, month=calendar_month) }}" class="btn btn-outline-secondary" target="_blank">พิมพ์ตารางยา</a>
     <a href="{{ url_for('index') }}" class="btn btn-secondary">กลับ</a>
+    {% if not patient.archived %}
     <form method="post" action="{{ url_for('archive_patient', id=patient.id) }}" class="d-inline" onsubmit="return confirm('ยืนยันเก็บประวัติผู้ป่วย {{ patient.name }}? (ยังสามารถคืนสถานะได้ภายหลัง)');">
       <button type="submit" class="btn btn-outline-warning">เก็บประวัติ</button>
     </form>
+    {% endif %}
   </div>
 </div>
+
+{% if patient.archived %}
+<div class="alert alert-warning d-flex align-items-center gap-2 mb-3">
+  <span>&#9888;</span>
+  <span>ผู้ป่วยนี้ถูกเก็บประวัติแล้ว — ไม่สามารถแก้ไขข้อมูลได้
+    <a href="{{ url_for('index') }}" class="alert-link ms-2">คืนสถานะได้ที่หน้าหลัก</a>
+  </span>
+</div>
+{% endif %}
 
 {# ---------- Today's dose quick card ---------- #}
 {% if today_dose %}
@@ -31,7 +42,7 @@
         {% if today_dose.taken %}
           <span class="badge bg-success fs-6">กินยาแล้ว</span>
           <small class="text-muted ms-2">{{ today_dose.taken_time.strftime('%H:%M:%S') if today_dose.taken_time else '' }}</small>
-        {% else %}
+        {% elif not patient.archived %}
           <form method="post" action="{{ url_for('mark_dose', id=patient.id, dose_id=today_dose.id) }}" class="d-inline">
             <button type="submit" class="btn btn-success btn-lg">กินยาแล้ว</button>
           </form>
@@ -63,14 +74,19 @@
         <p class="mb-1">กินแล้ว: <strong>{{ stats.taken }}</strong> / {{ stats.total_past }} วัน</p>
         <p class="mb-1">ค้าง: <strong class="text-danger">{{ stats.overdue }}</strong> วัน</p>
         <p class="mb-1">ความสม่ำเสมอ:
+          {% if stats.total_past == 0 %}
+          <span class="badge bg-secondary">ไม่มีข้อมูล</span>
+          {% else %}
           <span class="badge {% if stats.adherence_pct >= 90 %}badge-adherence-high{% elif stats.adherence_pct >= 70 %}badge-adherence-mid{% else %}badge-adherence-low{% endif %}">
             {{ stats.adherence_pct }}%
           </span>
+          {% endif %}
         </p>
         <div class="progress mt-2" style="height: 8px;">
           <div class="progress-bar {% if stats.adherence_pct >= 90 %}bg-success{% elif stats.adherence_pct >= 70 %}bg-warning{% else %}bg-danger{% endif %}" style="width: {{ stats.adherence_pct }}%;"></div>
         </div>
         <hr>
+        {% if not patient.archived %}
         <a href="{{ url_for('edit_patient', id=patient.id) }}" class="btn btn-sm btn-outline-secondary w-100 mb-2">แก้ไขข้อมูลผู้ป่วย</a>
         <a href="{{ url_for('extend_schedule', id=patient.id) }}" class="btn btn-sm btn-outline-primary w-100 mb-2">จัดการตารางยา / เพิ่มวัน</a>
         <form method="post" action="{{ url_for('update_weight', id=patient.id) }}" class="d-flex gap-1">
@@ -78,6 +94,7 @@
           <span class="align-self-center text-muted small">kg</span>
           <button type="submit" class="btn btn-sm btn-outline-warning">อัปเดตน้ำหนัก</button>
         </form>
+        {% endif %}
       </div>
     </div>
   </div>
