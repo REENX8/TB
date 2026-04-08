@@ -52,6 +52,9 @@
         <p class="mb-1">น้ำหนัก: {{ patient.weight }} kg</p>
         <p class="mb-1">ชนิด: {{ patient.tb_type }}</p>
         <p class="mb-1">วันเริ่มรักษา: {{ patient.start_date.strftime('%Y-%m-%d') }}</p>
+        {% if patient.phone %}
+        <p class="mb-1">เบอร์โทร: <a href="tel:{{ patient.phone }}">{{ patient.phone }}</a></p>
+        {% endif %}
         {% if patient.custom_regimen %}
         <p class="mb-1"><span class="badge bg-info">สูตรยาเฉพาะ</span></p>
         {% endif %}
