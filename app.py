@@ -17,6 +17,7 @@ from datetime import date, datetime, timedelta, timezone
 from functools import wraps
 from io import BytesIO, StringIO
 from calendar import monthrange
+from urllib.parse import urlparse
 
 from flask import (
     Flask,
@@ -506,6 +507,18 @@ def restore_patient(id: int) -> str:
     return redirect(url_for("index"))
 
 
+@app.route("/patient/<int:id>/delete", methods=["POST"])
+@staff_required
+def delete_patient(id: int) -> str:
+    patient = db.get_or_404(Patient, id)
+    name = patient.name
+    MedicationDose.query.filter_by(patient_id=id).delete()
+    db.session.delete(patient)
+    db.session.commit()
+    flash(f"ลบข้อมูลผู้ป่วย {name} ถาวรเรียบร้อย", "success")
+    return redirect(url_for("index"))
+
+
 # ---------------------------------------------------------------------------
 # Pharmacist editing routes (staff only)
 # ---------------------------------------------------------------------------
@@ -744,11 +757,7 @@ def qr_code_page(patient_id: int) -> str:
 
 @app.route("/scan/<token>", methods=["GET", "POST"])
 def scan_patient(token: str) -> str:
-    """Mobile page opened when patient scans their QR code.
-
-    Shows today's dose. Patient can confirm taking medication.
-    Also shows recent dose history.
-    """
+    """Mobile page opened when patient scans their QR code."""
     patient = Patient.query.filter_by(scan_token=token).first_or_404()
     today = date.today()
 
@@ -757,9 +766,17 @@ def scan_patient(token: str) -> str:
     ).first()
 
     if request.method == "POST" and today_dose and not today_dose.taken:
-        today_dose.taken = True
-        today_dose.taken_time = datetime.now(timezone.utc)
-        db.session.commit()
+        # Rate limit: cooldown 30s per token via session
+        cooldown_key = f"scan_last_{token}"
+        last_ts = session.get(cooldown_key, 0)
+        now_ts = datetime.now(timezone.utc).timestamp()
+        if now_ts - last_ts >= 30:
+            today_dose.taken = True
+            today_dose.taken_time = datetime.now(timezone.utc)
+            db.session.commit()
+            session[cooldown_key] = now_ts
+        # PRG: redirect after POST to prevent re-submit on refresh
+        return redirect(url_for("scan_patient", token=token))
 
     # Recent 7 days history
     week_ago = today - timedelta(days=6)
@@ -822,7 +839,8 @@ def staff_login() -> str:
             session["staff_user"] = username
             flash("เข้าสู่ระบบสำเร็จ", "success")
             next_url = request.args.get("next") or ""
-            if not next_url or not next_url.startswith("/"):
+            parsed = urlparse(next_url)
+            if not next_url or parsed.scheme or parsed.netloc or not parsed.path.startswith("/"):
                 next_url = url_for("dashboard")
             return redirect(next_url)
         else:
