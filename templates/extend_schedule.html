@@ -8,7 +8,7 @@
   <div class="card-header"><strong>เพิ่มวันกินยา</strong></div>
   <div class="card-body">
     <p class="text-muted">เพิ่มวันต่อจากวันสุดท้าย ({{ last_date.strftime('%Y-%m-%d') }})</p>
-    <form method="post">
+    <form method="post" onsubmit="return collectDrugs(this)">
       <input type="hidden" name="action" value="add_days" />
       <div class="row g-3 mb-3">
         <div class="col-md-4">
@@ -17,18 +17,23 @@
         </div>
       </div>
       <div class="form-check form-switch mb-3">
-        <input class="form-check-input" type="checkbox" id="use_custom_meds" name="use_custom_meds" onchange="document.getElementById('add_custom_section').style.display = this.checked ? 'block' : 'none'">
+        <input class="form-check-input" type="checkbox" id="use_custom_meds" name="use_custom_meds"
+               onchange="document.getElementById('add_custom_section').style.display = this.checked ? 'block' : 'none'">
         <label class="form-check-label" for="use_custom_meds">ใช้ยาชุดใหม่ (ไม่เหมือนเดิม)</label>
       </div>
       <div id="add_custom_section" style="display:none;" class="mb-3">
-        <div id="add_drug_rows">
-          <div class="row g-2 mb-2 drug-row">
-            <div class="col-7"><input type="text" class="form-control form-control-sm" name="drug_name" placeholder="ชื่อยา เช่น INH 100mg" /></div>
-            <div class="col-3"><input type="number" class="form-control form-control-sm" name="drug_count" placeholder="เม็ด" min="1" /></div>
-            <div class="col-2"><button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('.drug-row').remove()">X</button></div>
+        <p class="text-muted mb-2">เลือกยาและระบุจำนวนเม็ด:</p>
+        <div class="drug-picker-grid">
+          {% for dname, dimg in drug_images.items() %}
+          <div class="drug-pick-card" onclick="toggleDrugCard(this)" data-drug="{{ dname }}">
+            <img src="{{ url_for('static', filename=dimg) }}" alt="{{ dname }}">
+            <div class="drug-pick-name">{{ dname }}</div>
+            <input type="number" class="drug-pick-count form-control form-control-sm"
+                   step="0.5" min="0.5" placeholder="เม็ด" data-def="1"
+                   style="display:none" onclick="event.stopPropagation()">
           </div>
+          {% endfor %}
         </div>
-        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addRow('add_drug_rows')">+ เพิ่มรายการยา</button>
       </div>
       <p class="text-muted mb-2">ยาปัจจุบัน:
         {% for name, count in current_meds.items() %}
@@ -45,36 +50,30 @@
   <div class="card-header"><strong>เปลี่ยนยาสำหรับวันที่เหลือทั้งหมด</strong></div>
   <div class="card-body">
     <p class="text-muted">อัปเดตยาสำหรับวันที่ยังไม่ถึงและยังไม่ได้กิน</p>
-    <form method="post">
+    <form method="post" onsubmit="return collectDrugs(this)">
       <input type="hidden" name="action" value="update_future" />
-      <div id="update_drug_rows">
-        {% for name, count in current_meds.items() %}
-        <div class="row g-2 mb-2 drug-row">
-          <div class="col-7"><input type="text" class="form-control form-control-sm" name="drug_name" value="{{ name }}" /></div>
-          <div class="col-3"><input type="number" class="form-control form-control-sm" name="drug_count" value="{{ count }}" min="1" /></div>
-          <div class="col-2"><button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('.drug-row').remove()">X</button></div>
+      <p class="mb-2"><strong>เลือกยาและระบุจำนวนเม็ด:</strong></p>
+      <div class="drug-picker-grid">
+        {% for dname, dimg in drug_images.items() %}
+        {% set cur_count = current_meds.get(dname, 0) %}
+        <div class="drug-pick-card {% if cur_count %}selected{% endif %}"
+             onclick="toggleDrugCard(this)" data-drug="{{ dname }}">
+          <img src="{{ url_for('static', filename=dimg) }}" alt="{{ dname }}">
+          <div class="drug-pick-name">{{ dname }}</div>
+          <input type="number" class="drug-pick-count form-control form-control-sm"
+                 step="0.5" min="0.5" placeholder="เม็ด"
+                 value="{{ cur_count if cur_count else '' }}"
+                 data-def="{{ cur_count if cur_count else 1 }}"
+                 style="{{ '' if cur_count else 'display:none' }}"
+                 onclick="event.stopPropagation()">
         </div>
         {% endfor %}
       </div>
-      <button type="button" class="btn btn-sm btn-outline-secondary mb-3" onclick="addRow('update_drug_rows')">+ เพิ่มรายการยา</button>
-      <br>
-      <button type="submit" class="btn btn-warning" onclick="return confirm('ยืนยันเปลี่ยนยาสำหรับวันที่เหลือทั้งหมด?');">อัปเดตยาทั้งหมด</button>
+      <button type="submit" class="btn btn-warning mt-2"
+              onclick="return confirm('ยืนยันเปลี่ยนยาสำหรับวันที่เหลือทั้งหมด?')">อัปเดตยาทั้งหมด</button>
     </form>
   </div>
 </div>
 
 <a href="{{ url_for('view_patient', id=patient.id) }}" class="btn btn-secondary">กลับ</a>
-
-<script>
-function addRow(containerId) {
-  const row = document.createElement('div');
-  row.className = 'row g-2 mb-2 drug-row';
-  row.innerHTML = `
-    <div class="col-7"><input type="text" class="form-control form-control-sm" name="drug_name" placeholder="ชื่อยา" /></div>
-    <div class="col-3"><input type="number" class="form-control form-control-sm" name="drug_count" placeholder="เม็ด" min="1" /></div>
-    <div class="col-2"><button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('.drug-row').remove()">X</button></div>
-  `;
-  document.getElementById(containerId).appendChild(row);
-}
-</script>
 {% endblock %}

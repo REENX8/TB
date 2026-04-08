@@ -108,7 +108,10 @@
         {% endfor %}
       </div>
       <form method="post">
-        <button type="submit" class="btn btn-success confirm-btn">&#10004; กินยาแล้ว</button>
+        <button type="submit" class="btn btn-success confirm-btn"
+                onclick="this.disabled=true; this.innerText='กำลังบันทึก...'; this.form.submit();">
+          &#10004; กินยาแล้ว
+        </button>
       </form>
       <p class="text-muted mt-3" style="font-size:0.8rem;">กดปุ่มด้านบนเพื่อยืนยันว่ากินยาเรียบร้อยแล้ว</p>
     </div>

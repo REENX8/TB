@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block content %}
 <h1 class="h3 mb-3">เพิ่มผู้ป่วยใหม่</h1>
-<form method="post" novalidate>
+<form method="post" novalidate onsubmit="return collectDrugs(this)">
   <div class="row g-3">
     <div class="col-md-6">
       <label for="name" class="form-label">ชื่อ-สกุล</label>
@@ -54,21 +54,18 @@
         </label>
       </div>
       <div id="custom_section" style="display:none;">
-        <p class="text-muted mb-2">เภสัชกรระบุชื่อยาและจำนวนเม็ดต่อวัน:</p>
-        <div id="drug_rows">
-          <div class="row g-2 mb-2 drug-row">
-            <div class="col-7">
-              <input type="text" class="form-control form-control-sm" name="drug_name" placeholder="ชื่อยา เช่น INH 100mg" />
-            </div>
-            <div class="col-3">
-              <input type="number" class="form-control form-control-sm" name="drug_count" placeholder="เม็ด" min="1" />
-            </div>
-            <div class="col-2">
-              <button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('.drug-row').remove()">X</button>
-            </div>
+        <p class="text-muted mb-2">เลือกยาและระบุจำนวนเม็ดต่อวัน:</p>
+        <div class="drug-picker-grid">
+          {% for dname, dimg in drug_images.items() %}
+          <div class="drug-pick-card" onclick="toggleDrugCard(this)" data-drug="{{ dname }}">
+            <img src="{{ url_for('static', filename=dimg) }}" alt="{{ dname }}">
+            <div class="drug-pick-name">{{ dname }}</div>
+            <input type="number" class="drug-pick-count form-control form-control-sm"
+                   step="0.5" min="0.5" placeholder="เม็ด" data-def="1"
+                   style="display:none" onclick="event.stopPropagation()">
           </div>
+          {% endfor %}
         </div>
-        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addDrugRow()">+ เพิ่มรายการยา</button>
       </div>
     </div>
   </div>
@@ -81,18 +78,8 @@
 
 <script>
 function toggleCustom() {
-  const sec = document.getElementById('custom_section');
-  sec.style.display = document.getElementById('custom_regimen').checked ? 'block' : 'none';
-}
-function addDrugRow() {
-  const row = document.createElement('div');
-  row.className = 'row g-2 mb-2 drug-row';
-  row.innerHTML = `
-    <div class="col-7"><input type="text" class="form-control form-control-sm" name="drug_name" placeholder="ชื่อยา เช่น Rifampicin 300mg" /></div>
-    <div class="col-3"><input type="number" class="form-control form-control-sm" name="drug_count" placeholder="เม็ด" min="1" /></div>
-    <div class="col-2"><button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('.drug-row').remove()">X</button></div>
-  `;
-  document.getElementById('drug_rows').appendChild(row);
+  document.getElementById('custom_section').style.display =
+    document.getElementById('custom_regimen').checked ? 'block' : 'none';
 }
 </script>
 {% endblock %}
