@@ -828,5 +828,10 @@ def thai_month_filter(month_num):
     return THAI_MONTHS[month_num] if 1 <= month_num <= 12 else str(month_num)
 
 
+@app.route("/ping")
+def ping():
+    return "ok", 200
+
+
 if __name__ == "__main__":
     app.run(debug=True)
