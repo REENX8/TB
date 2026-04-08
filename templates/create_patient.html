@@ -34,6 +34,10 @@
       </select>
     </div>
     <div class="col-md-6">
+      <label for="phone" class="form-label">เบอร์โทรศัพท์</label>
+      <input type="tel" class="form-control" id="phone" name="phone" placeholder="เช่น 0812345678" />
+    </div>
+    <div class="col-md-6">
       <label for="start_date" class="form-label">วันเริ่มรักษา</label>
       <input type="date" class="form-control" id="start_date" name="start_date" value="{{ date.today().strftime('%Y-%m-%d') }}" required />
     </div>

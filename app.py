@@ -91,6 +91,7 @@ class Patient(db.Model):
     scan_token = db.Column(db.String(64), unique=True, nullable=True)
     custom_regimen = db.Column(db.Boolean, default=False, nullable=False)
     archived = db.Column(db.Boolean, default=False, nullable=False)
+    phone = db.Column(db.String(20), nullable=True)
     doses = db.relationship(
         "MedicationDose", backref="patient", cascade="all, delete-orphan"
     )
@@ -127,6 +128,13 @@ def _run_startup_migrations():
         try:
             conn.execute(text(
                 "ALTER TABLE patients ADD COLUMN archived BOOLEAN NOT NULL DEFAULT FALSE"
+            ))
+            conn.commit()
+        except Exception:
+            pass  # column already exists
+        try:
+            conn.execute(text(
+                "ALTER TABLE patients ADD COLUMN phone VARCHAR(20)"
             ))
             conn.commit()
         except Exception:
@@ -326,6 +334,7 @@ def new_patient() -> str:
         days_str = request.form.get("days_of_medication", "180").strip()
         use_custom = request.form.get("custom_regimen") == "on"
 
+        phone = request.form.get("phone", "").strip()
         if not all([name, hn, age, tb_no, weight, tb_type, start_date_str]):
             flash("กรุณากรอกข้อมูลให้ครบทุกช่อง", "danger")
             return render_template("create_patient.html")
@@ -346,6 +355,7 @@ def new_patient() -> str:
             name=name, hn=hn, age=age_val, tb_no=tb_no,
             weight=weight_val, tb_type=tb_type,
             start_date=start_date_obj, custom_regimen=use_custom,
+            phone=phone or None,
         )
         db.session.add(patient)
         db.session.commit()
@@ -473,6 +483,7 @@ def edit_patient(id: int) -> str:
         except ValueError:
             flash("ค่าตัวเลขไม่ถูกต้อง", "danger")
             return render_template("edit_patient.html", patient=patient)
+        phone = request.form.get("phone", "").strip()
         if not all([name, hn, tb_no, tb_type]):
             flash("กรุณากรอกข้อมูลให้ครบ", "danger")
             return render_template("edit_patient.html", patient=patient)
@@ -481,6 +492,7 @@ def edit_patient(id: int) -> str:
         patient.tb_no = tb_no
         patient.tb_type = tb_type
         patient.age = age_val
+        patient.phone = phone or None
         db.session.commit()
         flash("แก้ไขข้อมูลผู้ป่วยเรียบร้อย", "success")
         return redirect(url_for("view_patient", id=id))
