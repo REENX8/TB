@@ -473,7 +473,7 @@ def mark_dose(id: int, dose_id: int) -> str:
     ).first_or_404()
     if not dose.taken:
         dose.taken = True
-        dose.taken_time = datetime.now(timezone.utc)
+        dose.taken_time = datetime.now(TZ_THAI)
         db.session.commit()
         flash(f"บันทึกการกินยาวันที่ {dose.date.strftime('%Y-%m-%d')} เรียบร้อย", "success")
     else:
