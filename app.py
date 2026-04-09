@@ -826,10 +826,10 @@ def scan_patient(token: str) -> str:
         # Rate limit: cooldown 30s per token via session
         cooldown_key = f"scan_last_{token}"
         last_ts = session.get(cooldown_key, 0)
-        now_ts = datetime.now(timezone.utc).timestamp()
+        now_ts = datetime.now(TZ_THAI).timestamp()
         if now_ts - last_ts >= 30:
             today_dose.taken = True
-            today_dose.taken_time = datetime.now(timezone.utc)
+            today_dose.taken_time = datetime.now(TZ_THAI)
             db.session.commit()
             session[cooldown_key] = now_ts
         # PRG: redirect after POST to prevent re-submit on refresh
