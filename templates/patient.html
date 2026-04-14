@@ -66,6 +66,9 @@
         {% if patient.phone %}
         <p class="mb-1">เบอร์โทร: <a href="tel:{{ patient.phone }}">{{ patient.phone }}</a></p>
         {% endif %}
+        {% if patient.notes %}
+        <div class="mt-2 p-2 bg-light rounded" style="font-size:0.88rem; white-space:pre-wrap;">{{ patient.notes }}</div>
+        {% endif %}
         {% if patient.custom_regimen %}
         <p class="mb-1"><span class="badge bg-info">สูตรยาเฉพาะ</span></p>
         {% endif %}
