@@ -98,6 +98,7 @@ class Patient(db.Model):
     custom_regimen = db.Column(db.Boolean, default=False, nullable=False)
     archived = db.Column(db.Boolean, default=False, nullable=False)
     phone = db.Column(db.String(20), nullable=True)
+    notes = db.Column(db.Text, nullable=True)
     doses = db.relationship(
         "MedicationDose", backref="patient", cascade="all, delete-orphan"
     )
@@ -150,6 +151,16 @@ def _run_startup_migrations():
             conn.commit()
         except Exception as e:
             print("Migration error phone:", e)
+
+        try:
+            conn.execute(
+                text(
+                    "ALTER TABLE patients ADD COLUMN IF NOT EXISTS notes TEXT"
+                )
+            )
+            conn.commit()
+        except Exception as e:
+            print("Migration error notes:", e)
 
 with app.app_context():
     _run_startup_migrations()
@@ -312,6 +323,38 @@ def get_adherence_stats(patient: Patient) -> dict:
     }
 
 
+def get_adherence_stats_bulk(patient_ids: list, today: date) -> dict:
+    """Return adherence stats dict keyed by patient_id — single query for all patients."""
+    if not patient_ids:
+        return {}
+    rows = db.session.query(
+        MedicationDose.patient_id,
+        func.count(MedicationDose.id).label("total_all"),
+        func.sum(sa_case((MedicationDose.date <= today, 1), else_=0)).label("total_past"),
+        func.sum(sa_case(
+            (db.and_(MedicationDose.date <= today, MedicationDose.taken == True), 1),
+            else_=0,
+        )).label("taken"),
+    ).filter(MedicationDose.patient_id.in_(patient_ids)).group_by(MedicationDose.patient_id).all()
+
+    result = {}
+    for row in rows:
+        total_past = row.total_past or 0
+        taken = row.taken or 0
+        pct = round(taken / total_past * 100, 1) if total_past > 0 else 0
+        result[row.patient_id] = {
+            "total_past": total_past,
+            "taken": taken,
+            "overdue": total_past - taken,
+            "total_all": row.total_all or 0,
+            "adherence_pct": pct,
+        }
+    _empty = {"total_past": 0, "taken": 0, "overdue": 0, "total_all": 0, "adherence_pct": 0}
+    for pid in patient_ids:
+        result.setdefault(pid, dict(_empty))
+    return result
+
+
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
@@ -320,11 +363,21 @@ def get_adherence_stats(patient: Patient) -> dict:
 @staff_required
 def index() -> str:
     today = today_th()
-    patient_stats = []
-    for p in Patient.query.filter_by(archived=False).order_by(Patient.id).all():
-        stats = get_adherence_stats(p)
-        today_dose = MedicationDose.query.filter_by(patient_id=p.id, date=today).first()
-        patient_stats.append({"patient": p, "stats": stats, "today_dose": today_dose})
+    patients = Patient.query.filter_by(archived=False).order_by(Patient.id).all()
+    patient_ids = [p.id for p in patients]
+    stats_map = get_adherence_stats_bulk(patient_ids, today)
+    today_doses = {}
+    if patient_ids:
+        today_doses = {
+            d.patient_id: d for d in MedicationDose.query.filter(
+                MedicationDose.patient_id.in_(patient_ids),
+                MedicationDose.date == today,
+            ).all()
+        }
+    patient_stats = [
+        {"patient": p, "stats": stats_map[p.id], "today_dose": today_doses.get(p.id)}
+        for p in patients
+    ]
     archived_patients = Patient.query.filter_by(archived=True).order_by(Patient.id).all()
     return render_template("index.html", patient_stats=patient_stats,
                            archived_patients=archived_patients)
@@ -496,6 +549,7 @@ def edit_patient(id: int) -> str:
             flash("ค่าตัวเลขไม่ถูกต้อง", "danger")
             return render_template("edit_patient.html", patient=patient)
         phone = request.form.get("phone", "").strip()
+        notes = request.form.get("notes", "").strip()
         if not all([name, hn, tb_no, tb_type]):
             flash("กรุณากรอกข้อมูลให้ครบ", "danger")
             return render_template("edit_patient.html", patient=patient)
@@ -505,6 +559,7 @@ def edit_patient(id: int) -> str:
         patient.tb_type = tb_type
         patient.age = age_val
         patient.phone = phone or None
+        patient.notes = notes or None
         db.session.commit()
         flash("แก้ไขข้อมูลผู้ป่วยเรียบร้อย", "success")
         return redirect(url_for("view_patient", id=id))
@@ -845,6 +900,11 @@ def scan_patient(token: str) -> str:
 
     stats = get_adherence_stats(patient)
 
+    # Treatment progress
+    total_days = stats["total_all"]
+    taken_days = stats["taken"]
+    treatment_day = (today - patient.start_date).days + 1
+
     return render_template(
         "scan.html",
         patient=patient,
@@ -852,6 +912,9 @@ def scan_patient(token: str) -> str:
         today=today,
         recent_doses=recent_doses,
         stats=stats,
+        total_days=total_days,
+        taken_days=taken_days,
+        treatment_day=treatment_day,
     )
 
 
@@ -918,23 +981,33 @@ def staff_logout() -> str:
 def dashboard() -> str:
     patients = Patient.query.filter_by(archived=False).order_by(Patient.id).all()
     today = today_th()
+    patient_ids = [p.id for p in patients]
+    stats_map = get_adherence_stats_bulk(patient_ids, today)
+    today_doses = {}
+    if patient_ids:
+        today_doses = {
+            d.patient_id: d for d in MedicationDose.query.filter(
+                MedicationDose.patient_id.in_(patient_ids),
+                MedicationDose.date == today,
+            ).all()
+        }
+
     rows = []
     total_overdue_all = 0
+    missed_today = []
     for p in patients:
-        stats = get_adherence_stats(p)
-        today_dose = MedicationDose.query.filter_by(
-            patient_id=p.id, date=today
-        ).first()
-        rows.append({
-            "patient": p,
-            "stats": stats,
-            "today_dose": today_dose,
-        })
+        stats = stats_map[p.id]
+        today_dose = today_doses.get(p.id)
+        rows.append({"patient": p, "stats": stats, "today_dose": today_dose})
         total_overdue_all += stats["overdue"]
+        if today_dose and not today_dose.taken:
+            missed_today.append(p)
 
     return render_template(
         "dashboard.html", rows=rows, today=today,
         total_patients=len(patients), total_overdue=total_overdue_all,
+        missed_today=missed_today,
+        scheduled_today_count=len(today_doses),
     )
 
 

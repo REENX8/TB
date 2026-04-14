@@ -31,6 +31,10 @@
       <label class="form-label">เบอร์โทรศัพท์</label>
       <input type="tel" class="form-control" name="phone" value="{{ patient.phone or '' }}" placeholder="เช่น 0812345678">
     </div>
+    <div class="col-12">
+      <label class="form-label">บันทึก / หมายเหตุ</label>
+      <textarea class="form-control" name="notes" rows="3" placeholder="บันทึกเพิ่มเติม เช่น อาการแพ้ยา, ผลการรักษา, ข้อสังเกต...">{{ patient.notes or '' }}</textarea>
+    </div>
   </div>
   <div class="mt-3">
     <button type="submit" class="btn btn-primary">บันทึก</button>
