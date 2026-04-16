@@ -102,6 +102,6 @@ python -c "from werkzeug.security import generate_password_hash; print(generate_
 ---
 
 ## License
-MIT License © 2026 CHAKIREEN ASAE
+MIT License © 2026 Chakireen Asae
 
 If you use or reference this project, a mention or credit is appreciated.
