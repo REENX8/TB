@@ -1,0 +1,129 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <h1 class="h3 mb-0">รายงาน Adherence รายเดือน</h1>
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('report_export', year=year, month=month) }}" class="btn btn-outline-success btn-sm">
+      &#8595; Export CSV
+    </a>
+  </div>
+</div>
+
+{# Month selector #}
+<div class="card mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-auto">
+        <label class="form-label mb-0">เดือน / ปี</label>
+        <select class="form-select form-select-sm" name="month" style="width:auto;">
+          {% for y, m in month_options %}
+          <option value="{{ m }}" {% if m == month and y == year %}selected{% endif %}>
+            {{ m|thai_month }} {{ y }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-auto">
+        <select class="form-select form-select-sm" name="year" style="width:auto;">
+          {% set years = month_options|map(attribute=0)|unique|list %}
+          {% for y in years %}
+          <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-primary btn-sm">ดูรายงาน</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{# Summary cards #}
+<div class="row mb-3">
+  <div class="col-md-3 mb-2">
+    <div class="card text-center">
+      <div class="card-body py-2">
+        <h3 class="mb-0">{{ total_patients }}</h3>
+        <small class="text-muted">ผู้ป่วยที่มีข้อมูลเดือนนี้</small>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3 mb-2">
+    <div class="card text-center {% if avg_pct >= 90 %}border-success{% elif avg_pct >= 70 %}border-warning{% else %}border-danger{% endif %}">
+      <div class="card-body py-2">
+        <h3 class="mb-0 {% if avg_pct >= 90 %}text-success{% elif avg_pct >= 70 %}text-warning{% else %}text-danger{% endif %}">{{ avg_pct }}%</h3>
+        <small class="text-muted">ค่าเฉลี่ย adherence</small>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3 mb-2">
+    <div class="card text-center border-success">
+      <div class="card-body py-2">
+        {% set good = report_rows|selectattr('pct', 'ge', 90)|list|length %}
+        <h3 class="mb-0 text-success">{{ good }}</h3>
+        <small class="text-muted">สม่ำเสมอ (&ge;90%)</small>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3 mb-2">
+    <div class="card text-center border-danger">
+      <div class="card-body py-2">
+        {% set risk = report_rows|selectattr('pct', 'lt', 70)|selectattr('total', 'gt', 0)|list|length %}
+        <h3 class="mb-0 text-danger">{{ risk }}</h3>
+        <small class="text-muted">เสี่ยง (&lt;70%)</small>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# Report table #}
+<div class="table-responsive">
+  <table class="table table-bordered table-hover align-middle table-sm">
+    <thead class="table-light">
+      <tr>
+        <th>ชื่อ</th>
+        <th>HN</th>
+        <th>ชนิด TB</th>
+        <th class="text-center">โดสในเดือน</th>
+        <th class="text-center">กินแล้ว</th>
+        <th class="text-center">ค้าง</th>
+        <th style="min-width:140px;">% Adherence</th>
+        <th>ผลการรักษา</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in report_rows %}
+      {% if row.total > 0 %}
+      <tr class="{% if row.pct < 70 %}table-danger{% elif row.pct < 90 %}table-warning{% endif %}">
+        <td><a href="{{ url_for('view_patient', id=row.patient.id) }}" class="text-decoration-none">{{ row.patient.name }}</a></td>
+        <td>{{ row.patient.hn }}</td>
+        <td><small>{{ row.patient.tb_type }}</small></td>
+        <td class="text-center">{{ row.total }}</td>
+        <td class="text-center text-success fw-semibold">{{ row.taken }}</td>
+        <td class="text-center {% if row.overdue > 0 %}text-danger fw-semibold{% endif %}">{{ row.overdue }}</td>
+        <td>
+          <div class="d-flex align-items-center gap-2">
+            <div class="progress flex-grow-1" style="height:6px; min-width:60px;">
+              <div class="progress-bar {% if row.pct >= 90 %}bg-success{% elif row.pct >= 70 %}bg-warning{% else %}bg-danger{% endif %}"
+                   style="width:{{ row.pct }}%;"></div>
+            </div>
+            <small>{{ row.pct }}%</small>
+          </div>
+        </td>
+        <td>
+          {% set oc = row.patient.outcome or '' %}
+          <span class="badge {% if oc in ('cured','completed') %}bg-success{% elif oc in ('failed','defaulted','died') %}bg-danger{% elif oc == 'transferred_out' %}bg-secondary{% else %}bg-light text-dark{% endif %}" style="font-size:.78rem;">
+            {{ {'':'กำลังรักษา','cured':'หาย','completed':'รักษาครบ','failed':'ไม่สำเร็จ','defaulted':'ขาดยา','died':'เสียชีวิต','transferred_out':'ส่งต่อ'}.get(oc, oc) }}
+          </span>
+        </td>
+      </tr>
+      {% endif %}
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if not report_rows or report_rows|selectattr('total', 'gt', 0)|list|length == 0 %}
+<div class="alert alert-secondary text-center">ไม่มีข้อมูลยาสำหรับเดือนนี้</div>
+{% endif %}
+{% endblock %}

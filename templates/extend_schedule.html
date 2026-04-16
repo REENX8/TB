@@ -9,6 +9,7 @@
   <div class="card-body">
     <p class="text-muted">เพิ่มวันต่อจากวันสุดท้าย ({{ last_date.strftime('%Y-%m-%d') }})</p>
     <form method="post" onsubmit="return collectDrugs(this)">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="action" value="add_days" />
       <div class="row g-3 mb-3">
         <div class="col-md-4">
@@ -57,6 +58,7 @@
     {% if removable_days > 0 %}
     <form method="post"
           onsubmit="return confirm('ยืนยันลด ' + document.getElementById('remove_days_input').value + ' วันสุดท้ายออกจากตาราง?')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="action" value="remove_days" />
       <div class="row g-2 align-items-end">
         <div class="col-auto">
@@ -81,6 +83,7 @@
   <div class="card-body">
     <p class="text-muted">อัปเดตยาสำหรับวันที่ยังไม่ถึงและยังไม่ได้กิน</p>
     <form method="post" onsubmit="return collectDrugs(this)">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="action" value="update_future" />
       <p class="mb-2"><strong>เลือกยาและระบุจำนวนเม็ด:</strong></p>
       <div class="drug-picker-grid">

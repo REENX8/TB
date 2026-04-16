@@ -13,6 +13,9 @@ import csv
 import hashlib
 import json
 import os
+import secrets
+import time
+from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 from functools import wraps
 from io import BytesIO, StringIO
@@ -37,8 +40,10 @@ from flask import (
     url_for,
 )
 from flask_sqlalchemy import SQLAlchemy
+from flask_wtf.csrf import CSRFProtect
 from sqlalchemy import func, case as sa_case, text
 from werkzeug.security import check_password_hash
+from werkzeug.security import safe_join  # noqa: F401 – kept for completeness
 import qrcode
 
 
@@ -49,8 +54,32 @@ if _db_url.startswith("postgres://"):
 app.config["SQLALCHEMY_DATABASE_URI"] = _db_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=8)
+app.config["WTF_CSRF_TIME_LIMIT"] = None  # token ไม่หมดอายุตาม session
 app.secret_key = os.environ.get("SECRET_KEY", "change_this_secret")
 db = SQLAlchemy(app)
+csrf = CSRFProtect(app)
+
+# ---------------------------------------------------------------------------
+# Brute-force login protection (in-memory, resets on restart)
+# ---------------------------------------------------------------------------
+_login_attempts: dict = defaultdict(list)  # ip -> [timestamp, ...]
+_MAX_LOGIN_ATTEMPTS = 5
+_LOGIN_LOCKOUT_SECONDS = 15 * 60  # 15 นาที
+
+
+def _is_login_locked(ip: str) -> bool:
+    now = time.time()
+    _login_attempts[ip] = [t for t in _login_attempts[ip]
+                           if now - t < _LOGIN_LOCKOUT_SECONDS]
+    return len(_login_attempts[ip]) >= _MAX_LOGIN_ATTEMPTS
+
+
+def _record_login_failure(ip: str) -> None:
+    _login_attempts[ip].append(time.time())
+
+
+def _clear_login_attempts(ip: str) -> None:
+    _login_attempts.pop(ip, None)
 
 STAFF_USERNAME = os.environ.get("STAFF_USER")
 STAFF_PASSWORD_HASH = os.environ.get("STAFF_PASS_HASH")
@@ -99,6 +128,8 @@ class Patient(db.Model):
     archived = db.Column(db.Boolean, default=False, nullable=False)
     phone = db.Column(db.String(20), nullable=True)
     notes = db.Column(db.Text, nullable=True)
+    # ผลการรักษา: ongoing / cured / completed / failed / defaulted / died / transferred_out
+    outcome = db.Column(db.String(30), nullable=True, default="")
     doses = db.relationship(
         "MedicationDose", backref="patient", cascade="all, delete-orphan"
     )
@@ -126,8 +157,29 @@ class MedicationDose(db.Model):
     def medications(self, value: dict) -> None:
         self.medications_json = json.dumps(value)
 
+    __table_args__ = (
+        db.Index("ix_dose_patient_date", "patient_id", "date"),
+        db.Index("ix_dose_patient_taken", "patient_id", "taken"),
+    )
+
     def __repr__(self) -> str:
         return f"<Dose {self.id} {self.date} taken={self.taken}>"
+
+
+class AuditLog(db.Model):
+    __tablename__ = "audit_logs"
+    id = db.Column(db.Integer, primary_key=True)
+    timestamp = db.Column(db.DateTime, nullable=False,
+                          default=lambda: datetime.now(TZ_THAI), index=True)
+    staff_user = db.Column(db.String(60), nullable=False)
+    action = db.Column(db.String(60), nullable=False)
+    patient_id = db.Column(db.Integer, db.ForeignKey("patients.id", ondelete="SET NULL"),
+                           nullable=True)
+    patient_name = db.Column(db.String(120), nullable=True)
+    detail = db.Column(db.Text, nullable=True)
+
+    def __repr__(self) -> str:
+        return f"<AuditLog {self.id} {self.action}>"
 
 
 def _run_startup_migrations():
@@ -161,6 +213,16 @@ def _run_startup_migrations():
             conn.commit()
         except Exception as e:
             print("Migration error notes:", e)
+
+        try:
+            conn.execute(
+                text(
+                    "ALTER TABLE patients ADD COLUMN IF NOT EXISTS outcome VARCHAR(30) DEFAULT ''"
+                )
+            )
+            conn.commit()
+        except Exception as e:
+            print("Migration error outcome:", e)
 
 with app.app_context():
     _run_startup_migrations()
@@ -225,10 +287,9 @@ def calculate_regimen(weight: float) -> dict:
         }
 
 
-def make_patient_token(patient_id: int) -> str:
-    """Generate a unique scan token for a patient."""
-    raw = f"patient-{patient_id}-{app.secret_key}"
-    return hashlib.sha256(raw.encode()).hexdigest()[:16]
+def make_patient_token(patient_id: int = None) -> str:  # noqa: ARG001
+    """Generate a cryptographically random scan token (32-char URL-safe)."""
+    return secrets.token_urlsafe(32)
 
 
 def generate_schedule(patient: Patient, days: int = 180,
@@ -356,6 +417,38 @@ def get_adherence_stats_bulk(patient_ids: list, today: date) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Audit logging helper
+# ---------------------------------------------------------------------------
+
+OUTCOME_LABELS = {
+    "": "กำลังรักษา",
+    "cured": "หาย (Cured)",
+    "completed": "รักษาครบ (Completed)",
+    "failed": "รักษาไม่สำเร็จ (Failed)",
+    "defaulted": "ขาดยา (Defaulted)",
+    "died": "เสียชีวิต (Died)",
+    "transferred_out": "ส่งต่อ (Transferred out)",
+}
+
+
+def log_audit(action: str, patient=None, detail: str = None) -> None:
+    """บันทึก audit log; ดึง staff_user จาก session อัตโนมัติ"""
+    try:
+        entry = AuditLog(
+            timestamp=datetime.now(TZ_THAI),
+            staff_user=session.get("staff_user", "system"),
+            action=action,
+            patient_id=patient.id if patient else None,
+            patient_name=patient.name if patient else None,
+            detail=detail,
+        )
+        db.session.add(entry)
+        db.session.commit()
+    except Exception as e:
+        print("Audit log error:", e)
+
+
+# ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
 
@@ -448,6 +541,7 @@ def new_patient() -> str:
         else:
             generate_schedule(patient, days_of_medication)
 
+        log_audit("NEW_PATIENT", patient=patient, detail=f"HN: {patient.hn}, weight: {patient.weight} kg")
         flash("เพิ่มผู้ป่วยสำเร็จ", "success")
         return redirect(url_for("view_patient", id=patient.id))
     return render_template("create_patient.html")
@@ -514,6 +608,7 @@ def view_patient(id: int) -> str:
         next_year=next_year, next_month=next_month,
         today_dose=today_dose, today=today, stats=stats,
         filter_start=filter_start or None, filter_end=filter_end or None,
+        outcome_labels=OUTCOME_LABELS,
     )
 
 
@@ -528,6 +623,7 @@ def mark_dose(id: int, dose_id: int) -> str:
         dose.taken = True
         dose.taken_time = datetime.now(TZ_THAI)
         db.session.commit()
+        log_audit("MARK_DOSE", patient=dose.patient, detail=f"วันที่ {dose.date}")
         flash(f"บันทึกการกินยาวันที่ {dose.date.strftime('%Y-%m-%d')} เรียบร้อย", "success")
     else:
         flash("บันทึกการกินยาไปแล้ว", "info")
@@ -560,10 +656,13 @@ def edit_patient(id: int) -> str:
         patient.age = age_val
         patient.phone = phone or None
         patient.notes = notes or None
+        outcome = request.form.get("outcome", "").strip()
+        patient.outcome = outcome if outcome in OUTCOME_LABELS else ""
         db.session.commit()
+        log_audit("EDIT_PATIENT", patient=patient, detail=f"name={name}, HN={hn}, outcome={patient.outcome}")
         flash("แก้ไขข้อมูลผู้ป่วยเรียบร้อย", "success")
         return redirect(url_for("view_patient", id=id))
-    return render_template("edit_patient.html", patient=patient)
+    return render_template("edit_patient.html", patient=patient, outcome_labels=OUTCOME_LABELS)
 
 
 @app.route("/patient/<int:id>/archive", methods=["POST"])
@@ -572,6 +671,7 @@ def archive_patient(id: int) -> str:
     patient = db.get_or_404(Patient, id)
     patient.archived = True
     db.session.commit()
+    log_audit("ARCHIVE", patient=patient)
     flash(f"เก็บประวัติผู้ป่วย {patient.name} เรียบร้อย (ยังสามารถคืนสถานะได้)", "info")
     return redirect(url_for("index"))
 
@@ -582,6 +682,7 @@ def restore_patient(id: int) -> str:
     patient = db.get_or_404(Patient, id)
     patient.archived = False
     db.session.commit()
+    log_audit("RESTORE", patient=patient)
     flash(f"คืนสถานะผู้ป่วย {patient.name} เรียบร้อย", "success")
     return redirect(url_for("index"))
 
@@ -591,6 +692,7 @@ def restore_patient(id: int) -> str:
 def delete_patient(id: int) -> str:
     patient = db.get_or_404(Patient, id)
     name = patient.name
+    log_audit("DELETE", detail=f"ลบผู้ป่วย {name} (HN: {patient.hn}) ถาวร")
     MedicationDose.query.filter_by(patient_id=id).delete()
     db.session.delete(patient)
     db.session.commit()
@@ -625,6 +727,7 @@ def edit_dose(id: int, dose_id: int) -> str:
         if new_meds:
             dose.medications = new_meds
             db.session.commit()
+            log_audit("EDIT_DOSE", patient=patient, detail=f"วันที่ {dose.date}, ยา: {new_meds}")
             flash(f"แก้ไขยาวันที่ {dose.date.strftime('%Y-%m-%d')} เรียบร้อย", "success")
         else:
             flash("กรุณาระบุยาอย่างน้อย 1 รายการ", "danger")
@@ -689,6 +792,7 @@ def extend_schedule(id: int) -> str:
             ]
             db.session.execute(MedicationDose.__table__.insert(), rows)
             db.session.commit()
+            log_audit("EXTEND_SCHEDULE", patient=patient, detail=f"เพิ่ม {extra_days} วัน ตั้งแต่ {start}")
             flash(f"เพิ่ม {extra_days} วัน (ตั้งแต่ {start.strftime('%Y-%m-%d')})", "success")
 
         elif action == "remove_days":
@@ -717,6 +821,7 @@ def extend_schedule(id: int) -> str:
             for dose in future_untaken:
                 db.session.delete(dose)
             db.session.commit()
+            log_audit("REMOVE_DAYS", patient=patient, detail=f"ลด {actual} วันออกจากตาราง")
             flash(f"ลด {actual} วันออกจากตารางยาแล้ว", "success")
 
         elif action == "update_future":
@@ -741,6 +846,7 @@ def extend_schedule(id: int) -> str:
                     .values(medications_json=json.dumps(regimen))
                 )
                 db.session.commit()
+                log_audit("UPDATE_FUTURE", patient=patient, detail=f"อัปเดตยา {updated.rowcount} วัน: {regimen}")
                 flash(f"อัปเดตยาสำหรับ {updated.rowcount} วันที่เหลือ", "success")
             else:
                 flash("กรุณาระบุยาอย่างน้อย 1 รายการ", "danger")
@@ -772,6 +878,7 @@ def unmark_dose(id: int, dose_id: int) -> str:
     dose.taken = False
     dose.taken_time = None
     db.session.commit()
+    log_audit("UNMARK_DOSE", patient=dose.patient, detail=f"วันที่ {dose.date}")
     flash(f"ยกเลิกการกินยาวันที่ {dose.date.strftime('%Y-%m-%d')} เรียบร้อย", "success")
     return redirect(url_for("view_patient", id=id))
 
@@ -806,8 +913,10 @@ def update_weight(id: int) -> str:
             .values(medications_json=json.dumps(new_regimen))
         )
         db.session.commit()
+        log_audit("UPDATE_WEIGHT", patient=patient, detail=f"น้ำหนักใหม่ {new_weight} kg, คำนวณยาใหม่")
         flash(f"อัปเดตน้ำหนัก {new_weight} kg และคำนวณยาใหม่เรียบร้อย", "success")
     else:
+        log_audit("UPDATE_WEIGHT", patient=patient, detail=f"น้ำหนักใหม่ {new_weight} kg (custom regimen)")
         flash(f"อัปเดตน้ำหนัก {new_weight} kg (สูตรยาเฉพาะไม่เปลี่ยนแปลง)", "info")
 
     return redirect(url_for("view_patient", id=id))
@@ -868,6 +977,7 @@ def qr_code_page(patient_id: int) -> str:
 
 
 @app.route("/scan/<token>", methods=["GET", "POST"])
+@csrf.exempt
 def scan_patient(token: str) -> str:
     """Mobile page opened when patient scans their QR code."""
     patient = Patient.query.filter_by(scan_token=token).first_or_404()
@@ -950,13 +1060,20 @@ def staff_login() -> str:
     if session.get("staff_logged_in"):
         return redirect(url_for("dashboard"))
     if request.method == "POST":
+        ip = request.remote_addr or "unknown"
+        if _is_login_locked(ip):
+            wait_min = _LOGIN_LOCKOUT_SECONDS // 60
+            flash(f"พยายามเข้าสู่ระบบหลายครั้งเกินไป กรุณารอ {wait_min} นาทีแล้วลองใหม่", "danger")
+            return render_template("login.html")
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
         _hash = STAFF_ACCOUNTS.get(username)
         if _hash and check_password_hash(_hash, password):
+            _clear_login_attempts(ip)
             session.permanent = True
             session["staff_logged_in"] = True
             session["staff_user"] = username
+            log_audit("LOGIN", detail=f"IP: {ip}")
             flash("เข้าสู่ระบบสำเร็จ", "success")
             next_url = request.args.get("next") or ""
             parsed = urlparse(next_url)
@@ -964,12 +1081,15 @@ def staff_login() -> str:
                 next_url = url_for("dashboard")
             return redirect(next_url)
         else:
-            flash("ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง", "danger")
+            _record_login_failure(ip)
+            remaining = _MAX_LOGIN_ATTEMPTS - len(_login_attempts[ip])
+            flash(f"ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง (เหลืออีก {remaining} ครั้ง)", "danger")
     return render_template("login.html")
 
 
 @app.route("/logout")
 def staff_logout() -> str:
+    log_audit("LOGOUT")
     session.pop("staff_logged_in", None)
     session.pop("staff_user", None)
     flash("ออกจากระบบเรียบร้อย", "info")
@@ -1049,5 +1169,162 @@ def ping():
     return "ok", 200
 
 
+# ---------------------------------------------------------------------------
+# Regenerate QR token (staff only)
+# ---------------------------------------------------------------------------
+
+@app.route("/patient/<int:id>/regenerate_token", methods=["POST"])
+@staff_required
+def regenerate_token(id: int):
+    patient = db.get_or_404(Patient, id)
+    patient.scan_token = make_patient_token()
+    db.session.commit()
+    log_audit("REGEN_TOKEN", patient=patient)
+    flash("สร้าง QR Code ใหม่เรียบร้อย — QR เก่าจะใช้ไม่ได้แล้ว", "success")
+    return redirect(url_for("qr_code_page", patient_id=id))
+
+
+# ---------------------------------------------------------------------------
+# Audit Log view
+# ---------------------------------------------------------------------------
+
+@app.route("/audit")
+@staff_required
+def audit_log() -> str:
+    page = request.args.get("page", 1, type=int)
+    action_filter = request.args.get("action", "").strip()
+    date_from = request.args.get("from", "").strip()
+    date_to = request.args.get("to", "").strip()
+
+    query = AuditLog.query.order_by(AuditLog.timestamp.desc())
+    if action_filter:
+        query = query.filter(AuditLog.action == action_filter)
+    if date_from:
+        try:
+            query = query.filter(AuditLog.timestamp >= datetime.strptime(date_from, "%Y-%m-%d"))
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            dt_to = datetime.strptime(date_to, "%Y-%m-%d") + timedelta(days=1)
+            query = query.filter(AuditLog.timestamp < dt_to)
+        except ValueError:
+            pass
+
+    pagination = query.paginate(page=page, per_page=50, error_out=False)
+    all_actions = [r[0] for r in db.session.query(AuditLog.action).distinct().order_by(AuditLog.action).all()]
+    return render_template("audit.html",
+        logs=pagination.items, pagination=pagination,
+        action_filter=action_filter, date_from=date_from, date_to=date_to,
+        all_actions=all_actions)
+
+
+# ---------------------------------------------------------------------------
+# Monthly Adherence Report
+# ---------------------------------------------------------------------------
+
+@app.route("/report")
+@staff_required
+def report() -> str:
+    today = today_th()
+    year = request.args.get("year", today.year, type=int)
+    month = request.args.get("month", today.month, type=int)
+    _, last_day = monthrange(year, month)
+    first = date(year, month, 1)
+    last = date(year, month, last_day)
+
+    patients = Patient.query.filter_by(archived=False).order_by(Patient.id).all()
+    patient_ids = [p.id for p in patients]
+
+    # Aggregate doses for the month per patient in one query
+    rows_q = db.session.query(
+        MedicationDose.patient_id,
+        func.count(MedicationDose.id).label("total"),
+        func.sum(sa_case((MedicationDose.taken == True, 1), else_=0)).label("taken"),
+    ).filter(
+        MedicationDose.patient_id.in_(patient_ids),
+        MedicationDose.date >= first,
+        MedicationDose.date <= last,
+    ).group_by(MedicationDose.patient_id).all()
+
+    stats_by_pid = {r.patient_id: r for r in rows_q}
+    report_rows = []
+    for p in patients:
+        r = stats_by_pid.get(p.id)
+        total = r.total if r else 0
+        taken = r.taken if r else 0
+        overdue = total - taken
+        pct = round(taken / total * 100, 1) if total else 0
+        report_rows.append({
+            "patient": p,
+            "total": total,
+            "taken": taken,
+            "overdue": overdue,
+            "pct": pct,
+        })
+
+    avg_pct = round(
+        sum(row["pct"] for row in report_rows if row["total"] > 0) /
+        max(sum(1 for row in report_rows if row["total"] > 0), 1),
+        1,
+    )
+
+    # Month options for dropdown (last 12 months + next 3)
+    month_options = []
+    for delta in range(-11, 4):
+        y = today.year + (today.month - 1 + delta) // 12
+        m = (today.month - 1 + delta) % 12 + 1
+        month_options.append((y, m))
+
+    return render_template("report.html",
+        report_rows=report_rows, year=year, month=month,
+        month_options=month_options, avg_pct=avg_pct,
+        total_patients=len([r for r in report_rows if r["total"] > 0]))
+
+
+@app.route("/report/export")
+@staff_required
+def report_export():
+    today = today_th()
+    year = request.args.get("year", today.year, type=int)
+    month = request.args.get("month", today.month, type=int)
+    _, last_day = monthrange(year, month)
+    first = date(year, month, 1)
+    last = date(year, month, last_day)
+
+    patients = Patient.query.filter_by(archived=False).order_by(Patient.id).all()
+    patient_ids = [p.id for p in patients]
+
+    rows_q = db.session.query(
+        MedicationDose.patient_id,
+        func.count(MedicationDose.id).label("total"),
+        func.sum(sa_case((MedicationDose.taken == True, 1), else_=0)).label("taken"),
+    ).filter(
+        MedicationDose.patient_id.in_(patient_ids),
+        MedicationDose.date >= first,
+        MedicationDose.date <= last,
+    ).group_by(MedicationDose.patient_id).all()
+
+    stats_by_pid = {r.patient_id: r for r in rows_q}
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["ชื่อ", "HN", "ชนิด TB", "โดสในเดือน", "กินแล้ว", "ค้าง", "% ความสม่ำเสมอ", "ผลการรักษา"])
+    for p in patients:
+        r = stats_by_pid.get(p.id)
+        total = r.total if r else 0
+        taken = r.taken if r else 0
+        pct = round(taken / total * 100, 1) if total else 0
+        outcome_label = OUTCOME_LABELS.get(p.outcome or "", "กำลังรักษา")
+        writer.writerow([p.name, p.hn, p.tb_type, total, taken, total - taken, pct, outcome_label])
+    output.seek(0)
+    filename = f"adherence_report_{year}_{month:02d}.csv"
+    return send_file(
+        BytesIO(output.getvalue().encode("utf-8-sig")),
+        mimetype="text/csv",
+        as_attachment=True,
+        download_name=filename,
+    )
+
+
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=os.environ.get("FLASK_DEBUG", "0") == "1")

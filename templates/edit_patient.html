@@ -2,6 +2,7 @@
 {% block content %}
 <h1 class="h3 mb-3">แก้ไขข้อมูลผู้ป่วย</h1>
 <form method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <div class="row g-3">
     <div class="col-md-6">
       <label class="form-label">ชื่อ-สกุล</label>
@@ -30,6 +31,14 @@
     <div class="col-md-6">
       <label class="form-label">เบอร์โทรศัพท์</label>
       <input type="tel" class="form-control" name="phone" value="{{ patient.phone or '' }}" placeholder="เช่น 0812345678">
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">ผลการรักษา</label>
+      <select class="form-select" name="outcome">
+        {% for val, label in outcome_labels.items() %}
+        <option value="{{ val }}" {% if (patient.outcome or '') == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
     </div>
     <div class="col-12">
       <label class="form-label">บันทึก / หมายเหตุ</label>
