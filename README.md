@@ -5,6 +5,10 @@
 
 ---
 
+# PREVIEW WEBSITE
+https://reenx8.github.io/TB/index.html
+
+---
 ## Features
 
 - **จัดการผู้ป่วย** — เพิ่ม, แก้ไขข้อมูล, เก็บประวัติ (soft delete), คืนสถานะ
