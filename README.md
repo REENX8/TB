@@ -98,3 +98,10 @@ python -c "from werkzeug.security import generate_password_hash; print(generate_
 4. Start Command: `gunicorn app:app`
 5. เพิ่ม Environment Variables ตามตารางด้านบน
 6. เพิ่ม PostgreSQL database → copy URL ใส่ `DATABASE_URL`
+
+---
+
+## License
+MIT License © 2026 CHAKIREEN ASAE
+
+If you use or reference this project, a mention or credit is appreciated.
