@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Audit Log — TB Tracker Demo</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <style>
+    body { padding-bottom: 60px; }
+    .demo-banner { background:linear-gradient(90deg,#0d6efd,#6610f2); color:#fff; text-align:center; padding:6px; font-size:.85rem; }
+  </style>
+</head>
+<body>
+<div class="demo-banner">&#127774; DEMO MODE — ข้อมูลจำลอง ไม่ใช่ข้อมูลจริง</div>
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-3">
+  <div class="container-fluid">
+    <a class="navbar-brand" href="index.html">TB Tracker</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="nav">
+      <ul class="navbar-nav me-auto">
+        <li class="nav-item"><a class="nav-link" href="index.html">ผู้ป่วย</a></li>
+        <li class="nav-item"><a class="nav-link" href="dashboard.html">Dashboard</a></li>
+        <li class="nav-item"><a class="nav-link" href="report.html">รายงาน</a></li>
+        <li class="nav-item"><a class="nav-link active" href="audit.html">Audit Log</a></li>
+      </ul>
+      <ul class="navbar-nav">
+        <li class="nav-item"><span class="nav-link text-light opacity-75">demo</span></li>
+      </ul>
+    </div>
+  </div>
+</nav>
+<div class="container">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">Audit Log</h1>
+    <a href="index.html" class="btn btn-sm btn-secondary">กลับ</a>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover align-middle">
+      <thead class="table-light">
+        <tr><th>เวลา</th><th>ผู้ใช้</th><th>Action</th><th>ผู้ป่วย</th><th>รายละเอียด</th></tr>
+      </thead>
+      <tbody id="audit-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+<script src="demo-data.js"></script>
+<script>
+// Generate mock audit logs
+const ACTIONS = [
+  {action:'LOGIN',    detail:'IP: 192.168.1.10', patient:null, cls:'bg-success'},
+  {action:'MARK_DOSE',detail:'วันที่ วานนี้',      cls:'bg-primary'},
+  {action:'MARK_DOSE',detail:'วันที่ 3 วันก่อน',   cls:'bg-primary'},
+  {action:'EDIT_PATIENT',detail:'name, phone updated', cls:'bg-primary'},
+  {action:'UNMARK_DOSE',detail:'วันที่ วานนี้ (แก้ไข)', cls:'bg-primary'},
+  {action:'MARK_DOSE',detail:'วันที่ วานนี้',     cls:'bg-primary'},
+  {action:'UPDATE_WEIGHT',detail:'น้ำหนักใหม่ 66 kg', cls:'bg-primary'},
+  {action:'NEW_PATIENT',detail:'HN: 99999, weight: 58 kg', cls:'bg-success'},
+  {action:'EDIT_DOSE',detail:'วันที่ -5 days, ยา: {INH:3,RIF:2}', cls:'bg-primary'},
+  {action:'EXTEND_SCHEDULE',detail:'เพิ่ม 30 วัน', cls:'bg-primary'},
+  {action:'ARCHIVE',detail:'', cls:'bg-danger'},
+  {action:'RESTORE',detail:'', cls:'bg-success'},
+  {action:'LOGOUT',detail:'', patient:null, cls:'bg-secondary'},
+  {action:'LOGIN',detail:'IP: 192.168.1.10', patient:null, cls:'bg-success'},
+  {action:'MARK_DOSE',detail:'วันที่ today', cls:'bg-primary'},
+  {action:'REMOVE_DAYS',detail:'ลด 7 วัน', cls:'bg-primary'},
+  {action:'UPDATE_FUTURE',detail:'อัปเดตยา 15 วัน', cls:'bg-primary'},
+  {action:'DELETE',detail:'ลบผู้ป่วยทดสอบ ถาวร', patient:null, cls:'bg-danger'},
+  {action:'REGEN_TOKEN',detail:'', cls:'bg-primary'},
+  {action:'LOGIN',detail:'IP: 10.0.0.5', patient:null, cls:'bg-success'},
+];
+const STAFF = ['nurse01','pharma01','nurse01','nurse02','nurse01'];
+const activePats = PATIENTS.filter(p=>!p.archived);
+
+let t = new Date(TODAY); t.setHours(8,30,0);
+const logs = ACTIONS.map((a, i) => {
+  t = new Date(t.getTime() - Math.floor(Math.random()*3600000 + 300000));
+  const pat = a.patient === null ? null : activePats[i % activePats.length];
+  return { ts: new Date(t), staff: STAFF[i % STAFF.length], ...a, patient: pat };
+}).sort((a,b) => b.ts - a.ts);
+
+const tbody = document.getElementById('audit-tbody');
+logs.forEach(log => {
+  const ts = log.ts.toLocaleString('th-TH', {year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const patCell = log.patient
+    ? `<a href="patient.html?id=${log.patient.id}" class="text-decoration-none">${log.patient.name}</a>`
+    : '<span class="text-muted">—</span>';
+  tbody.innerHTML += `
+  <tr>
+    <td style="white-space:nowrap;font-size:.83rem;">${ts}</td>
+    <td><span class="badge bg-secondary">${log.staff}</span></td>
+    <td><span class="badge ${log.cls}">${log.action}</span></td>
+    <td style="font-size:.85rem;">${patCell}</td>
+    <td style="font-size:.82rem;color:#555;">${log.detail||''}</td>
+  </tr>`;
+});
+</script>
+</body>
+</html>

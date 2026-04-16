@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dashboard — TB Tracker Demo</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <style>
+    body { padding-bottom: 60px; }
+    .demo-banner { background: linear-gradient(90deg,#0d6efd,#6610f2); color:#fff; text-align:center; padding:6px; font-size:.85rem; letter-spacing:.05em; }
+  </style>
+</head>
+<body>
+<div class="demo-banner">&#127774; DEMO MODE — ข้อมูลจำลอง ไม่ใช่ข้อมูลจริง</div>
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-3">
+  <div class="container-fluid">
+    <a class="navbar-brand" href="index.html">TB Tracker</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="nav">
+      <ul class="navbar-nav me-auto">
+        <li class="nav-item"><a class="nav-link" href="index.html">ผู้ป่วย</a></li>
+        <li class="nav-item"><a class="nav-link active" href="dashboard.html">Dashboard</a></li>
+        <li class="nav-item"><a class="nav-link" href="report.html">รายงาน</a></li>
+        <li class="nav-item"><a class="nav-link" href="audit.html">Audit Log</a></li>
+      </ul>
+      <ul class="navbar-nav">
+        <li class="nav-item"><span class="nav-link text-light opacity-75">demo</span></li>
+      </ul>
+    </div>
+  </div>
+</nav>
+<div class="container">
+  <h1 class="h3 mb-3">Dashboard เจ้าหน้าที่</h1>
+  <div id="alert-box" class="mb-4"></div>
+  <div class="row mb-4" id="cards"></div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>ID</th><th>ชื่อ</th><th>HN</th><th>ชนิด</th><th>วันเริ่ม</th>
+          <th>กินแล้ว / ทั้งหมด</th><th>ค้าง</th><th>ความสม่ำเสมอ</th>
+          <th>ยาวันนี้</th><th></th>
+        </tr>
+      </thead>
+      <tbody id="dash-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+<script src="demo-data.js"></script>
+<script>
+const active = PATIENTS.filter(p => !p.archived);
+let totalOverdue = 0, good = 0, risk = 0, cured = 0, missed = [];
+
+active.forEach(p => {
+  const stats = getStats(p);
+  const td = getTodayDose(p);
+  totalOverdue += stats.overdue;
+  if (stats.adherence_pct >= 90) good++;
+  if (stats.adherence_pct < 70 && stats.total_past > 0) risk++;
+  if (['cured','completed'].includes(p.outcome)) cured++;
+  if (td && !td.taken) missed.push(p);
+});
+
+// Alert
+const alertBox = document.getElementById('alert-box');
+if (missed.length > 0) {
+  alertBox.innerHTML = `
+  <div class="alert alert-warning">
+    <strong>&#9888; ยังไม่กินยาวันนี้ (${missed.length} ราย)</strong>
+    <ul class="mb-0 mt-2">
+      ${missed.map(p => `<li><a href="patient.html?id=${p.id}" class="alert-link fw-semibold">${p.name}</a>
+        <span class="text-muted small">HN: ${p.hn}${p.phone ? ' &nbsp;|&nbsp; <a href="tel:'+p.phone+'" class="alert-link">'+p.phone+'</a>' : ''}</span></li>`).join('')}
+    </ul>
+  </div>`;
+} else {
+  alertBox.innerHTML = `<div class="alert alert-success">&#10004; ผู้ป่วยทุกรายกินยาครบแล้ววันนี้!</div>`;
+}
+
+// Summary cards
+document.getElementById('cards').innerHTML = `
+<div class="col-md-3 mb-2"><div class="card text-center"><div class="card-body">
+  <h2 class="mb-0">${active.length}</h2><small class="text-muted">ผู้ป่วยทั้งหมด</small>
+</div></div></div>
+<div class="col-md-3 mb-2"><div class="card text-center border-danger"><div class="card-body">
+  <h2 class="mb-0 text-danger">${totalOverdue}</h2><small class="text-muted">โดสค้างรวม</small>
+</div></div></div>
+<div class="col-md-3 mb-2"><div class="card text-center border-success"><div class="card-body">
+  <h2 class="mb-0 text-success">${good}</h2><small class="text-muted">สม่ำเสมอ (≥90%)</small>
+</div></div></div>
+<div class="col-md-3 mb-2"><div class="card text-center border-warning"><div class="card-body">
+  <h2 class="mb-0 text-warning">${risk}</h2><small class="text-muted">เสี่ยงขาดยา (&lt;70%)</small>
+</div></div></div>
+<div class="col-md-3 mb-2"><div class="card text-center border-success"><div class="card-body">
+  <h2 class="mb-0 text-success">${cured}</h2><small class="text-muted">รักษาสำเร็จ</small>
+</div></div></div>`;
+
+// Table
+const tbody = document.getElementById('dash-tbody');
+active.forEach(p => {
+  const stats = getStats(p);
+  const td = getTodayDose(p);
+  const rowClass = stats.adherence_pct < 70 ? 'table-danger' : stats.adherence_pct < 90 ? 'table-warning' : '';
+  const todayCell = td
+    ? (td.taken ? '<span class="badge bg-success">กินแล้ว</span>' : '<span class="badge bg-warning text-dark">ยังไม่กิน</span>')
+    : '<span class="text-muted">-</span>';
+  const pct = stats.adherence_pct;
+  const barCls = pct >= 90 ? 'bg-success' : pct >= 70 ? 'bg-warning' : 'bg-danger';
+  tbody.innerHTML += `
+  <tr class="${rowClass}">
+    <td>${p.id}</td>
+    <td>${p.name}</td>
+    <td>${p.hn}</td>
+    <td>${p.tb_type}</td>
+    <td>${p.start_date.toLocaleDateString('th-TH')}</td>
+    <td>${stats.taken} / ${stats.total_past}</td>
+    <td>${stats.overdue > 0 ? `<span class="badge bg-danger">${stats.overdue}</span>` : '<span class="text-success">0</span>'}</td>
+    <td>
+      <div class="d-flex align-items-center gap-2">
+        <div class="progress flex-grow-1" style="height:6px;min-width:60px;">
+          <div class="progress-bar ${barCls}" style="width:${pct}%;"></div>
+        </div>
+        <small>${pct}%</small>
+      </div>
+    </td>
+    <td>${todayCell}</td>
+    <td><a href="patient.html?id=${p.id}" class="btn btn-sm btn-outline-primary">ดู</a></td>
+  </tr>`;
+});
+</script>
+</body>
+</html>

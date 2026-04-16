@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ยืนยันกินยา — TB Tracker Demo</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <style>
+    body {
+      min-height: 100vh;
+      background: linear-gradient(160deg, #e3f2fd 0%, #f0f4f8 100%);
+      padding: 12px 12px 32px;
+    }
+    .scan-card { max-width:460px; margin:0 auto; border-radius:20px; overflow:hidden; box-shadow:0 6px 32px rgba(0,0,0,.12); }
+    .scan-header { padding:20px 20px 14px; text-align:center; }
+    .patient-name { font-size:1.25rem; font-weight:700; opacity:.95; }
+    .sub { font-size:.82rem; opacity:.75; }
+    .drug-grid { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; }
+    .drug-card { background:#e8f5e9; border-radius:14px; padding:10px 10px 8px; text-align:center; width:108px; }
+    .drug-card img { width:68px; height:68px; object-fit:contain; border-radius:8px; background:#fff; }
+    .drug-card .drug-name { font-size:.7rem; color:#444; margin-top:5px; line-height:1.3; }
+    .drug-card .drug-count { font-size:1rem; font-weight:700; color:#1b5e20; }
+    .confirm-btn { width:100%; padding:18px; font-size:1.25rem; font-weight:700; border-radius:14px; }
+    .confirm-btn:not(:disabled) { animation:pulse-btn 2s infinite; }
+    @keyframes pulse-btn { 0%,100%{box-shadow:0 0 0 0 rgba(25,135,84,.35);} 50%{box-shadow:0 0 0 10px rgba(25,135,84,0);} }
+    .success-icon { font-size:5rem; color:#198754; animation:pop-in .4s cubic-bezier(.175,.885,.32,1.275); }
+    @keyframes pop-in { from{transform:scale(0);opacity:0;} to{transform:scale(1);opacity:1;} }
+    .adherence-block { background:#f8f9fa; border-radius:12px; padding:10px 16px; text-align:center; }
+    .adherence-pct { font-size:2rem; font-weight:800; line-height:1; }
+    .history-row { font-size:.85rem; }
+    .demo-banner { background:linear-gradient(90deg,#0d6efd,#6610f2); color:#fff; text-align:center; padding:6px; font-size:.82rem; }
+  </style>
+</head>
+<body>
+<div class="demo-banner">&#127774; DEMO MODE — แตะปุ่มเพื่อทดลองใช้งาน</div>
+
+<div class="scan-card card border-0 mt-2" id="card">
+  <!-- Dynamically rendered -->
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+<script src="demo-data.js"></script>
+<script>
+const params = new URLSearchParams(location.search);
+const pid = parseInt(params.get('id') || '1');
+const patient = PATIENTS.find(p => p.id === pid) || PATIENTS[0];
+const stats = getStats(patient);
+const totalDays = stats.total_all;
+const takenDays = stats.taken;
+
+let todayDose = getTodayDose(patient);
+let confirmed = todayDose ? todayDose.taken : false;
+let confirmTime = todayDose && todayDose.taken_time ? todayDose.taken_time : null;
+
+const DRUG_IMG = {
+  'INH 100mg':'https://placehold.co/68x68/a5d6a7/388e3c?text=INH',
+  'Rifampicin 300mg':'https://placehold.co/68x68/ef9a9a/c62828?text=RIF',
+  'Rifampicin 450mg':'https://placehold.co/68x68/ef9a9a/c62828?text=RIF',
+  'PZA 500mg':'https://placehold.co/68x68/fff176/f9a825?text=PZA',
+  'EMB 400mg':'https://placehold.co/68x68/90caf9/1565c0?text=EMB',
+  'EMB 500mg':'https://placehold.co/68x68/90caf9/1565c0?text=EMB',
+  'Levofloxacin 500mg':'https://placehold.co/68x68/ce93d8/6a1b9a?text=LEV',
+  'Ethionamide 250mg':'https://placehold.co/68x68/ffcc80/e65100?text=ETH',
+  'Cycloserine 250mg':'https://placehold.co/68x68/b2ebf2/006064?text=CYC',
+  'Pyridoxine 10mg':'https://placehold.co/68x68/f8bbd0/880e4f?text=B6',
+};
+
+function drugCards(meds) {
+  return Object.entries(meds).map(([name, count]) =>
+    `<div class="drug-card">
+      <img src="${DRUG_IMG[name] || 'https://placehold.co/68x68/eeeeee/666?text=?'}" alt="${name}">
+      <div class="drug-name">${name}</div>
+      <div class="drug-count">${count} เม็ด</div>
+    </div>`
+  ).join('');
+}
+
+function recentHistory() {
+  const week = patient.doses.filter(d => {
+    const diff = (TODAY - d.date) / 86400000;
+    return diff >= 0 && diff <= 6;
+  }).sort((a, b) => b.date - a.date);
+  if (!week.length) return '';
+  const rows = week.map(d => {
+    const badge = d.taken
+      ? `<span class="badge bg-success">กินแล้ว ${d.taken_time ? d.taken_time.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}) : ''}</span>`
+      : d.date < TODAY
+        ? '<span class="badge bg-danger">ค้าง</span>'
+        : '<span class="badge bg-warning text-dark">รอกิน</span>';
+    return `<div class="d-flex justify-content-between align-items-center history-row py-1 border-bottom">
+      <span>${d.date.toLocaleDateString('th-TH',{day:'2-digit',month:'2-digit'})}</span>
+      ${badge}
+    </div>`;
+  }).join('');
+  return `<div class="card-footer bg-white px-3 pt-2 pb-3">
+    <p class="text-muted mb-2" style="font-size:.82rem;"><strong>ประวัติ 7 วันล่าสุด</strong></p>
+    ${rows}
+  </div>`;
+}
+
+function render() {
+  const pct = stats.adherence_pct;
+  const barCls = pct >= 90 ? 'bg-success' : pct >= 70 ? 'bg-warning' : 'bg-danger';
+  const pctCls = pct >= 90 ? 'text-success' : pct >= 70 ? 'text-warning' : 'text-danger';
+  const progress = totalDays > 0
+    ? `<div class="progress mt-2" style="height:6px;border-radius:4px;">
+        <div class="progress-bar bg-white bg-opacity-75" style="width:${Math.min(takenDays/totalDays*100,100)}%;"></div>
+       </div>
+       <div class="sub mt-1">กินยาแล้ว ${takenDays} / ${totalDays} วัน</div>`
+    : '';
+  const header = `<div class="scan-header bg-primary text-white">
+    <div class="patient-name">${patient.name}</div>
+    <div class="sub">วันที่ ${TODAY.toLocaleDateString('th-TH')}</div>
+    <div class="px-2">${progress}</div>
+  </div>`;
+
+  let body = '';
+  if (confirmed) {
+    const timeStr = confirmTime ? confirmTime.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}) + ' น.' : '-';
+    body = `<div class="card-body text-center py-4 px-3">
+      <div class="success-icon mb-2">&#10004;</div>
+      <h2 class="mb-1 fw-bold">กินยาแล้ววันนี้!</h2>
+      <p class="text-muted mb-1" style="font-size:.9rem;">เวลา ${timeStr}</p>
+      <div class="drug-grid my-3">${drugCards(todayDose.medications)}</div>
+      <p class="text-success fw-semibold mb-0">ขอบคุณที่รักษาต่อเนื่อง &#128522;</p>
+    </div>`;
+  } else if (todayDose) {
+    body = `<div class="card-body text-center px-3 pt-3">
+      <p class="text-muted mb-2" style="font-size:.9rem;">รายการยาที่ต้องกินวันนี้</p>
+      <div class="drug-grid mb-4">${drugCards(todayDose.medications)}</div>
+      <button class="btn btn-success confirm-btn" id="confirm-btn" onclick="confirmDose()">&#10004;&ensp;กินยาแล้ว</button>
+      <p class="text-muted mt-2" style="font-size:.78rem;">กดปุ่มเพื่อยืนยันว่ากินยาครบแล้ว</p>
+    </div>`;
+  } else {
+    body = `<div class="card-body text-center py-5 px-3">
+      <div style="font-size:3rem;">&#128138;</div>
+      <h5 class="mt-2 mb-1">ไม่มียาวันนี้</h5>
+      <p class="text-muted" style="font-size:.9rem;">ไม่มีกำหนดกินยาสำหรับวันนี้</p>
+    </div>`;
+  }
+
+  const adherenceBlock = stats.total_past > 0 ? `
+  <div class="px-3 pb-2">
+    <div class="adherence-block">
+      <div class="row align-items-center">
+        <div class="col-4 text-center">
+          <div class="adherence-pct ${pctCls}">${pct}%</div>
+          <div style="font-size:.78rem;color:#555;">ความสม่ำเสมอ</div>
+        </div>
+        <div class="col-8">
+          <div class="progress mb-1" style="height:8px;border-radius:6px;">
+            <div class="progress-bar ${barCls}" style="width:${pct}%;"></div>
+          </div>
+          <div style="font-size:.78rem;color:#555;">กินแล้ว ${stats.taken} วัน จาก ${stats.total_past} วัน</div>
+          ${stats.overdue > 0 ? `<span class="badge bg-danger mt-1" style="font-size:.78rem;">ค้าง ${stats.overdue} วัน</span>` : ''}
+        </div>
+      </div>
+    </div>
+  </div>` : '';
+
+  document.getElementById('card').innerHTML = header + body + adherenceBlock + recentHistory();
+}
+
+function confirmDose() {
+  const btn = document.getElementById('confirm-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'กำลังบันทึก...'; }
+  setTimeout(() => {
+    confirmed = true;
+    confirmTime = new Date();
+    render();
+  }, 800);
+}
+
+render();
+</script>
+</body>
+</html>
