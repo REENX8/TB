@@ -1,5 +1,7 @@
 """
 app.py — TB Medication Tracker
+Developed by Chakireen Asae
+© 2026 MIT License
 
 Features:
 - 1 QR code per patient (scans to patient's dose page)
