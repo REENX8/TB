@@ -12,6 +12,7 @@
     <a href="{{ url_for('index') }}" class="btn btn-secondary">กลับ</a>
     {% if not patient.archived %}
     <form method="post" action="{{ url_for('archive_patient', id=patient.id) }}" class="d-inline" onsubmit="return confirm('ยืนยันเก็บประวัติผู้ป่วย {{ patient.name }}? (ยังสามารถคืนสถานะได้ภายหลัง)');">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button type="submit" class="btn btn-outline-warning">เก็บประวัติ</button>
     </form>
     {% endif %}
@@ -44,6 +45,7 @@
           <small class="text-muted ms-2">{{ today_dose.taken_time.strftime('%H:%M:%S') if today_dose.taken_time else '' }}</small>
         {% elif not patient.archived %}
           <form method="post" action="{{ url_for('mark_dose', id=patient.id, dose_id=today_dose.id) }}" class="d-inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn btn-success btn-lg">กินยาแล้ว</button>
           </form>
         {% endif %}
@@ -69,6 +71,14 @@
         {% if patient.notes %}
         <div class="mt-2 p-2 bg-light rounded" style="font-size:0.88rem; white-space:pre-wrap;">{{ patient.notes }}</div>
         {% endif %}
+        {% if patient.outcome %}
+        {% set oc = patient.outcome %}
+        <p class="mb-1">ผลการรักษา:
+          <span class="badge {% if oc in ('cured','completed') %}bg-success{% elif oc in ('failed','defaulted','died') %}bg-danger{% elif oc == 'transferred_out' %}bg-secondary{% else %}bg-light text-dark{% endif %}">
+            {{ outcome_labels.get(oc, oc) }}
+          </span>
+        </p>
+        {% endif %}
         {% if patient.custom_regimen %}
         <p class="mb-1"><span class="badge bg-info">สูตรยาเฉพาะ</span></p>
         {% endif %}
@@ -93,9 +103,14 @@
         <a href="{{ url_for('edit_patient', id=patient.id) }}" class="btn btn-sm btn-outline-secondary w-100 mb-2">แก้ไขข้อมูลผู้ป่วย</a>
         <a href="{{ url_for('extend_schedule', id=patient.id) }}" class="btn btn-sm btn-outline-primary w-100 mb-2">จัดการตารางยา / เพิ่มวัน</a>
         <form method="post" action="{{ url_for('update_weight', id=patient.id) }}" class="d-flex gap-1">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="number" name="weight" step="0.1" min="1" value="{{ patient.weight }}" class="form-control form-control-sm" style="width:90px;" required>
           <span class="align-self-center text-muted small">kg</span>
           <button type="submit" class="btn btn-sm btn-outline-warning">อัปเดตน้ำหนัก</button>
+        </form>
+        <form method="post" action="{{ url_for('regenerate_token', id=patient.id) }}" class="mt-2" onsubmit="return confirm('สร้าง QR ใหม่? QR เก่าจะใช้ไม่ได้');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-sm btn-outline-secondary w-100">&#128260; Reset QR Code</button>
         </form>
         {% endif %}
       </div>
@@ -203,10 +218,12 @@
         <td>
           {% if not dose.taken %}
           <form method="post" action="{{ url_for('mark_dose', id=patient.id, dose_id=dose.id) }}" class="d-inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn btn-sm btn-success mb-1">กินแล้ว</button>
           </form>
           {% else %}
           <form method="post" action="{{ url_for('unmark_dose', id=patient.id, dose_id=dose.id) }}" class="d-inline" onsubmit="return confirm('ยืนยันยกเลิกการกินยาวันที่ {{ dose.date }}?');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn btn-sm btn-outline-danger mb-1">ยกเลิก</button>
           </form>
           {% endif %}

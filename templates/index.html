@@ -53,6 +53,12 @@
           {% else %}
             <span class="text-muted">-</span>
           {% endif %}
+          {% if row.patient.outcome %}
+          {% set oc = row.patient.outcome %}
+          <br><small class="badge mt-1 {% if oc in ('cured','completed') %}bg-success{% elif oc in ('failed','defaulted','died') %}bg-danger{% else %}bg-secondary{% endif %}">
+            {{ {'cured':'หาย','completed':'รักษาครบ','failed':'ไม่สำเร็จ','defaulted':'ขาดยา','died':'เสียชีวิต','transferred_out':'ส่งต่อ'}.get(oc, oc) }}
+          </small>
+          {% endif %}
         </td>
         <td>
           <a href="{{ url_for('view_patient', id=row.patient.id) }}" class="btn btn-sm btn-outline-primary">ดู</a>
@@ -95,10 +101,12 @@ function filterPatients(q) {
           <td>
             <a href="{{ url_for('view_patient', id=p.id) }}" class="btn btn-sm btn-outline-secondary">ดู</a>
             <form method="post" action="{{ url_for('restore_patient', id=p.id) }}" class="d-inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button type="submit" class="btn btn-sm btn-outline-success">คืนสถานะ</button>
             </form>
             <form method="post" action="{{ url_for('delete_patient', id=p.id) }}" class="d-inline"
                   onsubmit="return confirm('ลบข้อมูล {{ p.name }} ถาวร? ไม่สามารถกู้คืนได้');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button type="submit" class="btn btn-sm btn-outline-danger">ลบถาวร</button>
             </form>
           </td>

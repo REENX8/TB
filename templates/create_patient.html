@@ -2,6 +2,7 @@
 {% block content %}
 <h1 class="h3 mb-3">เพิ่มผู้ป่วยใหม่</h1>
 <form method="post" novalidate onsubmit="return collectDrugs(this)">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <div class="row g-3">
     <div class="col-md-6">
       <label for="name" class="form-label">ชื่อ-สกุล</label>

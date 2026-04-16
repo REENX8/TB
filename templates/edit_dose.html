@@ -4,6 +4,7 @@
 <p class="text-muted">วันที่: <strong>{{ dose.date.strftime('%Y-%m-%d') }}</strong></p>
 
 <form method="post" onsubmit="return collectDrugs(this)">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <div class="card mb-3">
     <div class="card-body">
       <p class="mb-2"><strong>เลือกยาและระบุจำนวนเม็ด:</strong></p>
