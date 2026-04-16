@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ข้อมูลผู้ป่วย — TB Tracker Demo</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <style>
+    body { padding-bottom: 60px; }
+    .demo-banner { background:linear-gradient(90deg,#0d6efd,#6610f2); color:#fff; text-align:center; padding:6px; font-size:.85rem; }
+    .badge-adherence-high { background-color:#198754; }
+    .badge-adherence-mid  { background-color:#ffc107; color:#000; }
+    .badge-adherence-low  { background-color:#dc3545; }
+    .today-card { border-left:4px solid #0d6efd; }
+    .calendar-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; }
+    .calendar-header { text-align:center; font-weight:bold; font-size:.75rem; padding:4px; background:#f8f9fa; }
+    .calendar-cell { min-height:48px; border:1px solid #dee2e6; padding:4px; font-size:.8rem; text-align:center; }
+    .calendar-cell.empty { border:none; }
+    .calendar-cell.taken  { background:#d4edda; }
+    .calendar-cell.pending{ background:#fff3cd; }
+    .calendar-cell.overdue{ background:#f8d7da; }
+    .calendar-cell.no_schedule { background:#f8f9fa; color:#aaa; }
+  </style>
+</head>
+<body>
+<div class="demo-banner">&#127774; DEMO MODE — ข้อมูลจำลอง ไม่ใช่ข้อมูลจริง</div>
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-3">
+  <div class="container-fluid">
+    <a class="navbar-brand" href="index.html">TB Tracker</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="nav">
+      <ul class="navbar-nav me-auto">
+        <li class="nav-item"><a class="nav-link" href="index.html">ผู้ป่วย</a></li>
+        <li class="nav-item"><a class="nav-link" href="dashboard.html">Dashboard</a></li>
+        <li class="nav-item"><a class="nav-link" href="report.html">รายงาน</a></li>
+        <li class="nav-item"><a class="nav-link" href="audit.html">Audit Log</a></li>
+      </ul>
+      <ul class="navbar-nav">
+        <li class="nav-item"><span class="nav-link text-light opacity-75">demo</span></li>
+      </ul>
+    </div>
+  </div>
+</nav>
+<div class="container" id="main"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+<script src="demo-data.js"></script>
+<script>
+const params = new URLSearchParams(location.search);
+const pid = parseInt(params.get('id') || '1');
+const patient = PATIENTS.find(p => p.id === pid) || PATIENTS[0];
+const stats = getStats(patient);
+const todayDose = getTodayDose(patient);
+
+// Calendar
+function buildCalendar(year, month) {
+  const first = new Date(year, month, 1);
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const startWeekday = (first.getDay() + 6) % 7; // Monday=0
+  const dosesMap = {};
+  patient.doses.forEach(d => { dosesMap[fmtYMD(d.date)] = d; });
+  let cells = '<div class="calendar-grid">';
+  const headers = ['จ.','อ.','พ.','พฤ.','ศ.','ส.','อา.'];
+  headers.forEach(h => { cells += `<div class="calendar-header">${h}</div>`; });
+  for (let i = 0; i < startWeekday; i++) cells += '<div class="calendar-cell empty"></div>';
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dt = new Date(year, month, d);
+    const key = fmtYMD(dt);
+    const dose = dosesMap[key];
+    let status = 'no_schedule', icon = '&mdash;';
+    if (dose) {
+      if (dose.taken) { status = 'taken'; icon = '<span class="text-success">&#10004;</span>'; }
+      else if (dt < TODAY) { status = 'overdue'; icon = '<span class="text-danger">&#10008;</span>'; }
+      else { status = 'pending'; icon = '<span class="text-warning">&#9679;</span>'; }
+    }
+    cells += `<div class="calendar-cell ${status}"><strong>${d}</strong><br>${icon}</div>`;
+  }
+  cells += '</div>';
+  return cells;
+}
+
+const thaiMonths = ['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+let calYear = TODAY.getFullYear(), calMonth = TODAY.getMonth();
+
+function renderCalendar() {
+  document.getElementById('cal-grid').innerHTML = buildCalendar(calYear, calMonth);
+  document.getElementById('cal-title').textContent = `${thaiMonths[calMonth+1]} ${calYear}`;
+}
+
+// Adherence badge
+function adBadge(pct, total) {
+  if (total === 0) return '<span class="badge bg-secondary">ไม่มีข้อมูล</span>';
+  const cls = pct >= 90 ? 'badge-adherence-high' : pct >= 70 ? 'badge-adherence-mid' : 'badge-adherence-low';
+  return `<span class="badge ${cls}">${pct}%</span>`;
+}
+
+// Dose table (last 30 days, paginated)
+let currentPage = 1;
+const PER_PAGE = 30;
+const sortedDoses = [...patient.doses].sort((a,b) => a.date - b.date);
+
+function renderDoseTable() {
+  const start = (currentPage - 1) * PER_PAGE;
+  const page = sortedDoses.slice(start, start + PER_PAGE);
+  let rows = '';
+  page.forEach(dose => {
+    const isPast = dose.date < TODAY;
+    const isToday = fmtYMD(dose.date) === fmtYMD(TODAY);
+    const rowCls = !dose.taken && isPast ? 'table-danger' : '';
+    let statusBadge = '';
+    if (dose.taken) statusBadge = `<span class="badge bg-success">กินแล้ว</span> <small class="text-muted">${dose.taken_time ? dose.taken_time.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}) : ''}</small>`;
+    else if (isPast) statusBadge = '<span class="badge bg-danger">ค้าง</span>';
+    else statusBadge = '<span class="badge bg-warning text-dark">รอกิน</span>';
+    const medsStr = Object.entries(dose.medications).map(([k,v]) => `<span class="badge bg-light text-dark">${k}: ${v}</span>`).join(' ');
+    rows += `<tr class="${rowCls}">
+      <td>${dose.date.toLocaleDateString('th-TH')}</td>
+      <td>${medsStr}</td>
+      <td>${statusBadge}</td>
+      <td><button class="btn btn-sm btn-outline-secondary mb-1" onclick="alert('Demo: ฟีเจอร์นี้ใช้งานได้ในระบบจริง')">แก้ไขยา</button></td>
+    </tr>`;
+  });
+  document.getElementById('dose-tbody').innerHTML = rows;
+  const totalPages = Math.ceil(sortedDoses.length / PER_PAGE);
+  document.getElementById('pagination-info').textContent = `หน้า ${currentPage} จาก ${totalPages} (${sortedDoses.length} รายการ)`;
+  document.getElementById('prev-btn').disabled = currentPage <= 1;
+  document.getElementById('next-btn').disabled = currentPage >= totalPages;
+}
+
+// Outcome badge
+function outcomeHtml(oc) {
+  if (!oc) return '';
+  const cls = ['cured','completed'].includes(oc) ? 'bg-success' : ['failed','defaulted','died'].includes(oc) ? 'bg-danger' : 'bg-secondary';
+  return `<p class="mb-1">ผลการรักษา: <span class="badge ${cls}">${OUTCOME_LABELS[oc]||oc}</span></p>`;
+}
+
+// Today dose card
+function todayCardHtml() {
+  if (!todayDose) return '';
+  const medsStr = Object.entries(todayDose.medications).map(([k,v]) => `<span class="badge bg-light text-dark me-1 mb-1">${k}: ${v} เม็ด</span>`).join('');
+  const rightSide = todayDose.taken
+    ? `<span class="badge bg-success fs-6">กินยาแล้ว</span>
+       <small class="text-muted ms-2">${todayDose.taken_time ? todayDose.taken_time.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}) : ''}</small>`
+    : `<button class="btn btn-success btn-lg" onclick="alert('Demo: กดยืนยันกินยาได้ในระบบจริง')">กินยาแล้ว</button>`;
+  return `<div class="card today-card mb-3"><div class="card-body">
+    <h5 class="card-title">ยาวันนี้ (${TODAY.toLocaleDateString('th-TH')})</h5>
+    <div class="row align-items-center">
+      <div class="col-md-6">${medsStr}</div>
+      <div class="col-md-6 text-md-end mt-2 mt-md-0">${rightSide}</div>
+    </div>
+  </div></div>`;
+}
+
+// Render main content
+const pct = stats.adherence_pct;
+const barCls = pct >= 90 ? 'bg-success' : pct >= 70 ? 'bg-warning' : 'bg-danger';
+const adgBadge = adBadge(pct, stats.total_past);
+const otherPatients = PATIENTS.filter(p => !p.archived && p.id !== patient.id);
+
+document.getElementById('main').innerHTML = `
+<!-- Header -->
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h1 class="h3 mb-0">${patient.name}</h1>
+    <small class="text-muted">HN: ${patient.hn} | TB no: ${patient.tb_no}</small>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <div class="dropdown">
+      <button class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown">เปลี่ยนผู้ป่วย</button>
+      <ul class="dropdown-menu">
+        ${otherPatients.map(p => `<li><a class="dropdown-item" href="patient.html?id=${p.id}">${p.name}</a></li>`).join('')}
+      </ul>
+    </div>
+    <a href="scan.html?id=${patient.id}" class="btn btn-outline-dark btn-sm" target="_blank">&#128247; QR Demo</a>
+    <button class="btn btn-outline-success btn-sm" onclick="alert('Demo: Export CSV ใช้งานได้ในระบบจริง')">Export CSV</button>
+    <a href="index.html" class="btn btn-secondary btn-sm">กลับ</a>
+  </div>
+</div>
+
+${todayCardHtml()}
+
+<div class="row">
+  <!-- Patient Info -->
+  <div class="col-md-4 mb-3">
+    <div class="card h-100">
+      <div class="card-body">
+        <h5 class="card-title">ข้อมูลผู้ป่วย</h5>
+        <p class="mb-1">อายุ: ${patient.age} ปี</p>
+        <p class="mb-1">น้ำหนัก: ${patient.weight} kg</p>
+        <p class="mb-1">ชนิด: ${patient.tb_type}</p>
+        <p class="mb-1">วันเริ่มรักษา: ${patient.start_date.toLocaleDateString('th-TH')}</p>
+        ${patient.phone ? `<p class="mb-1">เบอร์โทร: <a href="tel:${patient.phone}">${patient.phone}</a></p>` : ''}
+        ${patient.notes ? `<div class="mt-2 p-2 bg-light rounded" style="font-size:.88rem;">${patient.notes}</div>` : ''}
+        ${outcomeHtml(patient.outcome)}
+        <hr>
+        <h6>สถิติการกินยา</h6>
+        <p class="mb-1">กินแล้ว: <strong>${stats.taken}</strong> / ${stats.total_past} วัน</p>
+        <p class="mb-1">ค้าง: <strong class="text-danger">${stats.overdue}</strong> วัน</p>
+        <p class="mb-1">ความสม่ำเสมอ: ${adgBadge}</p>
+        <div class="progress mt-2" style="height:8px;">
+          <div class="progress-bar ${barCls}" style="width:${pct}%;"></div>
+        </div>
+        <hr>
+        <button class="btn btn-sm btn-outline-secondary w-100 mb-2" onclick="alert('Demo: แก้ไขข้อมูลได้ในระบบจริง')">แก้ไขข้อมูลผู้ป่วย</button>
+        <button class="btn btn-sm btn-outline-primary w-100 mb-2" onclick="alert('Demo: จัดการตารางยาได้ในระบบจริง')">จัดการตารางยา</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Calendar -->
+  <div class="col-md-8 mb-3">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <button class="btn btn-sm btn-outline-secondary" id="prev-cal">&laquo;</button>
+          <h5 class="card-title mb-0" id="cal-title"></h5>
+          <button class="btn btn-sm btn-outline-secondary" id="next-cal">&raquo;</button>
+        </div>
+        <div id="cal-grid"></div>
+        <div class="mt-2 d-flex gap-3" style="font-size:.8rem;">
+          <span><span class="badge" style="background:#d4edda;">&nbsp;</span> กินแล้ว</span>
+          <span><span class="badge" style="background:#fff3cd;">&nbsp;</span> รอกิน</span>
+          <span><span class="badge" style="background:#f8d7da;">&nbsp;</span> ค้าง</span>
+          <span><span class="badge" style="background:#f8f9fa;">&nbsp;</span> ไม่มีนัด</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Dose table -->
+<h4 class="mt-2">ตารางยา</h4>
+<div class="table-responsive">
+  <table class="table table-bordered table-sm align-middle">
+    <thead class="table-light">
+      <tr><th>วันที่</th><th>รายการยา</th><th>สถานะ</th><th>จัดการ</th></tr>
+    </thead>
+    <tbody id="dose-tbody"></tbody>
+  </table>
+</div>
+<div class="d-flex justify-content-between align-items-center mt-1">
+  <button id="prev-btn" class="btn btn-sm btn-outline-secondary" onclick="currentPage--;renderDoseTable()">ก่อนหน้า</button>
+  <small class="text-muted" id="pagination-info"></small>
+  <button id="next-btn" class="btn btn-sm btn-outline-secondary" onclick="currentPage++;renderDoseTable()">ถัดไป</button>
+</div>`;
+
+renderCalendar();
+renderDoseTable();
+
+document.getElementById('prev-cal').addEventListener('click', () => {
+  calMonth--; if (calMonth < 0) { calMonth = 11; calYear--; } renderCalendar();
+});
+document.getElementById('next-cal').addEventListener('click', () => {
+  calMonth++; if (calMonth > 11) { calMonth = 0; calYear++; } renderCalendar();
+});
+</script>
+</body>
+</html>

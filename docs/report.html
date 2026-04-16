@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>รายงาน — TB Tracker Demo</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <style>
+    body { padding-bottom: 60px; }
+    .demo-banner { background:linear-gradient(90deg,#0d6efd,#6610f2); color:#fff; text-align:center; padding:6px; font-size:.85rem; }
+  </style>
+</head>
+<body>
+<div class="demo-banner">&#127774; DEMO MODE — ข้อมูลจำลอง ไม่ใช่ข้อมูลจริง</div>
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-3">
+  <div class="container-fluid">
+    <a class="navbar-brand" href="index.html">TB Tracker</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="nav">
+      <ul class="navbar-nav me-auto">
+        <li class="nav-item"><a class="nav-link" href="index.html">ผู้ป่วย</a></li>
+        <li class="nav-item"><a class="nav-link" href="dashboard.html">Dashboard</a></li>
+        <li class="nav-item"><a class="nav-link active" href="report.html">รายงาน</a></li>
+        <li class="nav-item"><a class="nav-link" href="audit.html">Audit Log</a></li>
+      </ul>
+      <ul class="navbar-nav">
+        <li class="nav-item"><span class="nav-link text-light opacity-75">demo</span></li>
+      </ul>
+    </div>
+  </div>
+</nav>
+<div class="container">
+  <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <h1 class="h3 mb-0">รายงาน Adherence รายเดือน</h1>
+    <button class="btn btn-outline-success btn-sm" onclick="alert('Demo: Export CSV ใช้งานได้ในระบบจริง')">&#8595; Export CSV</button>
+  </div>
+
+  <!-- Month selector -->
+  <div class="card mb-3">
+    <div class="card-body">
+      <div class="d-flex gap-2 align-items-center flex-wrap">
+        <label class="mb-0">เดือน:</label>
+        <select class="form-select form-select-sm" id="sel-month" style="width:auto;" onchange="render()">
+        </select>
+        <select class="form-select form-select-sm" id="sel-year" style="width:auto;" onchange="render()">
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="render()">ดูรายงาน</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="row mb-3" id="summary-cards"></div>
+  <div class="table-responsive" id="report-table"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+<script src="demo-data.js"></script>
+<script>
+const thMonths = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+
+// Populate selectors
+const selM = document.getElementById('sel-month');
+const selY = document.getElementById('sel-year');
+const years = new Set();
+for (let d = -11; d <= 3; d++) {
+  const dt = new Date(TODAY.getFullYear(), TODAY.getMonth() + d, 1);
+  selM.innerHTML += `<option value="${dt.getMonth()}" ${dt.getMonth()===TODAY.getMonth()&&dt.getFullYear()===TODAY.getFullYear()?'selected':''}>
+    ${thMonths[dt.getMonth()]}
+  </option>`;
+  years.add(dt.getFullYear());
+}
+[...years].sort().forEach(y => {
+  selY.innerHTML += `<option value="${y}" ${y===TODAY.getFullYear()?'selected':''}>${y}</option>`;
+});
+
+function getMonthStats(patient, year, month) {
+  const doses = patient.doses.filter(d => d.date.getFullYear()===year && d.date.getMonth()===month);
+  const total = doses.length;
+  const taken = doses.filter(d => d.taken).length;
+  return { total, taken, overdue: total-taken, pct: total ? Math.round(taken/total*1000)/10 : 0 };
+}
+
+function render() {
+  const year = parseInt(selY.value);
+  const month = parseInt(selM.value);
+  const active = PATIENTS.filter(p => !p.archived);
+  const rows = active.map(p => ({ patient: p, ...getMonthStats(p, year, month) })).filter(r => r.total > 0);
+  const avgPct = rows.length ? Math.round(rows.reduce((s,r)=>s+r.pct,0)/rows.length*10)/10 : 0;
+  const good = rows.filter(r => r.pct >= 90).length;
+  const risk = rows.filter(r => r.pct < 70).length;
+
+  const cardBarCls = avgPct >= 90 ? 'border-success text-success' : avgPct >= 70 ? 'border-warning text-warning' : 'border-danger text-danger';
+  document.getElementById('summary-cards').innerHTML = `
+  <div class="col-md-3 mb-2"><div class="card text-center"><div class="card-body py-2">
+    <h3 class="mb-0">${rows.length}</h3><small class="text-muted">ผู้ป่วยที่มีข้อมูล</small>
+  </div></div></div>
+  <div class="col-md-3 mb-2"><div class="card text-center ${cardBarCls.split(' ')[0]}"><div class="card-body py-2">
+    <h3 class="mb-0 ${cardBarCls.split(' ')[1]}">${avgPct}%</h3><small class="text-muted">ค่าเฉลี่ย adherence</small>
+  </div></div></div>
+  <div class="col-md-3 mb-2"><div class="card text-center border-success"><div class="card-body py-2">
+    <h3 class="mb-0 text-success">${good}</h3><small class="text-muted">สม่ำเสมอ (≥90%)</small>
+  </div></div></div>
+  <div class="col-md-3 mb-2"><div class="card text-center border-danger"><div class="card-body py-2">
+    <h3 class="mb-0 text-danger">${risk}</h3><small class="text-muted">เสี่ยง (&lt;70%)</small>
+  </div></div></div>`;
+
+  if (!rows.length) {
+    document.getElementById('report-table').innerHTML = '<div class="alert alert-secondary text-center">ไม่มีข้อมูลยาสำหรับเดือนนี้</div>';
+    return;
+  }
+  let trs = rows.map(r => {
+    const rowCls = r.pct < 70 ? 'table-danger' : r.pct < 90 ? 'table-warning' : '';
+    const barCls = r.pct >= 90 ? 'bg-success' : r.pct >= 70 ? 'bg-warning' : 'bg-danger';
+    const oc = r.patient.outcome || '';
+    const ocCls = ['cured','completed'].includes(oc) ? 'bg-success' : ['failed','defaulted','died'].includes(oc) ? 'bg-danger' : oc==='transferred_out'?'bg-secondary':'bg-light text-dark';
+    const ocLbl = {'':'กำลังรักษา',cured:'หาย',completed:'รักษาครบ',failed:'ไม่สำเร็จ',defaulted:'ขาดยา',died:'เสียชีวิต',transferred_out:'ส่งต่อ'}[oc]||oc;
+    return `<tr class="${rowCls}">
+      <td><a href="patient.html?id=${r.patient.id}" class="text-decoration-none">${r.patient.name}</a></td>
+      <td>${r.patient.hn}</td>
+      <td><small>${r.patient.tb_type}</small></td>
+      <td class="text-center">${r.total}</td>
+      <td class="text-center text-success fw-semibold">${r.taken}</td>
+      <td class="text-center ${r.overdue>0?'text-danger fw-semibold':''}">${r.overdue}</td>
+      <td>
+        <div class="d-flex align-items-center gap-2">
+          <div class="progress flex-grow-1" style="height:6px;min-width:60px;">
+            <div class="progress-bar ${barCls}" style="width:${r.pct}%;"></div>
+          </div>
+          <small>${r.pct}%</small>
+        </div>
+      </td>
+      <td><span class="badge ${ocCls}" style="font-size:.78rem;">${ocLbl}</span></td>
+    </tr>`;
+  }).join('');
+  document.getElementById('report-table').innerHTML = `
+  <table class="table table-bordered table-hover align-middle table-sm">
+    <thead class="table-light">
+      <tr><th>ชื่อ</th><th>HN</th><th>ชนิด TB</th>
+        <th class="text-center">โดสในเดือน</th><th class="text-center">กินแล้ว</th>
+        <th class="text-center">ค้าง</th><th style="min-width:140px;">% Adherence</th>
+        <th>ผลการรักษา</th></tr>
+    </thead>
+    <tbody>${trs}</tbody>
+  </table>`;
+}
+
+render();
+</script>
+</body>
+</html>
