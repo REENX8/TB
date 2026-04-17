@@ -5,3 +5,7 @@ instance/
 *.pyo
 .env
 *.db
+.pytest_cache/
+.coverage
+.ruff_cache/
+htmlcov/

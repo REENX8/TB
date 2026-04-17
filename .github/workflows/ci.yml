@@ -1,0 +1,40 @@
+name: ci
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Run migration smoke test
+        env:
+          STAFF_USER: ci
+          STAFF_PASS_HASH: "pbkdf2:sha256:1:salt:hash"
+          SECRET_KEY: ci-secret
+          DATABASE_URL: sqlite:///ci.db
+        run: flask --app wsgi:app db upgrade
+
+      - name: Pytest with coverage
+        env:
+          STAFF_USER: ci
+          STAFF_PASS_HASH: "pbkdf2:sha256:1:salt:hash"
+          SECRET_KEY: ci-secret
+        run: pytest --cov=tb --cov-report=term --cov-fail-under=70

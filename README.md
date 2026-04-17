@@ -36,9 +36,18 @@ source venv/bin/activate      # Windows: venv\Scripts\activate
 # 2. ติดตั้ง dependencies
 pip install -r requirements.txt
 
-# 3. รัน
+# 3. รัน migration (สร้าง / อัปเกรด schema)
+flask --app wsgi:app db upgrade
+
+# 4. รัน dev server
 python app.py
 # เปิด http://localhost:5000
+```
+
+### การรัน tests
+
+```bash
+pytest --cov=tb
 ```
 
 ---
@@ -95,9 +104,20 @@ python -c "from werkzeug.security import generate_password_hash; print(generate_
 1. Push repo ขึ้น GitHub
 2. สร้าง Web Service ใหม่บน Render → เลือก repo
 3. Build Command: `pip install -r requirements.txt`
-4. Start Command: `gunicorn app:app`
+4. Start Command: `gunicorn wsgi:app`
 5. เพิ่ม Environment Variables ตามตารางด้านบน
 6. เพิ่ม PostgreSQL database → copy URL ใส่ `DATABASE_URL`
+
+### Migration rollout (เฉพาะครั้งแรกที่อัปเกรดจาก schema เดิม)
+
+สำหรับ production DB ที่สร้างโดย `db.create_all()` + ALTER TABLE เดิม:
+
+```bash
+# ครั้งเดียว — mark DB ที่ baseline โดยไม่รัน DDL ซ้ำ
+flask --app wsgi:app db stamp head
+```
+
+หลังจากนั้น deploy ได้ปกติ — `Procfile` จะรัน `flask db upgrade` ให้โดยอัตโนมัติ
 
 ---
 
