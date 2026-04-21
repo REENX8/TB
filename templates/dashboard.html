@@ -21,6 +21,42 @@
 </div>
 {% endif %}
 
+{# ---------- At-risk patients ---------- #}
+{% if at_risk %}
+<div class="card border-danger mb-4">
+  <div class="card-header bg-danger text-white fw-semibold">
+    &#9888; ผู้ป่วยเสี่ยงขาดยา ({{ at_risk|length }} ราย)
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover mb-0 align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>ชื่อ</th><th>HN</th><th>เบอร์โทร</th>
+          <th class="text-center">ขาดติดต่อกัน (วัน)</th>
+          <th class="text-center">Adherence %</th>
+          <th>กินยาล่าสุด</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in at_risk %}
+        <tr>
+          <td><a href="{{ url_for('view_patient', id=row.patient.id) }}" class="fw-semibold text-danger text-decoration-none">{{ row.patient.name }}</a></td>
+          <td>{{ row.patient.hn }}</td>
+          <td>{% if row.patient.phone %}<a href="tel:{{ row.patient.phone }}">{{ row.patient.phone }}</a>{% else %}-{% endif %}</td>
+          <td class="text-center">
+            {% if row.consecutive_missed >= 2 %}<span class="badge bg-danger">{{ row.consecutive_missed }}</span>
+            {% else %}{{ row.consecutive_missed }}{% endif %}
+          </td>
+          <td class="text-center {% if row.adherence_pct < 70 %}text-danger fw-semibold{% endif %}">{{ row.adherence_pct }}%</td>
+          <td>{{ row.last_taken_date.strftime('%Y-%m-%d') if row.last_taken_date else '-' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
 {# ---------- Summary cards ---------- #}
 <div class="row mb-4">
   <div class="col-md-3 mb-2">
@@ -67,6 +103,24 @@
     </div>
   </div>
 </div>
+
+{# ---------- TB Type charts ---------- #}
+{% if tb_type_stats and tb_type_stats|length > 1 %}
+<div class="row mb-4">
+  <div class="col-md-6 mb-2">
+    <div class="card h-100">
+      <div class="card-header fw-semibold">จำนวนผู้ป่วยแยกตามชนิด TB</div>
+      <div class="card-body"><canvas id="tbCountChart" height="180"></canvas></div>
+    </div>
+  </div>
+  <div class="col-md-6 mb-2">
+    <div class="card h-100">
+      <div class="card-header fw-semibold">ค่าเฉลี่ย Adherence แยกตามชนิด TB</div>
+      <div class="card-body"><canvas id="tbAdherenceChart" height="180"></canvas></div>
+    </div>
+  </div>
+</div>
+{% endif %}
 
 {# ---------- Patient table ---------- #}
 <div class="table-responsive">
@@ -131,5 +185,40 @@
 
 {% if not rows %}
 <div class="alert alert-secondary text-center">ยังไม่มีผู้ป่วยในระบบ</div>
+{% endif %}
+
+{% if tb_type_stats and tb_type_stats|length > 1 %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+  var stats = {{ tb_type_stats | tojson }};
+  var labels = stats.map(function(d) { return d.tb_type; });
+  var counts = stats.map(function(d) { return d.count; });
+  var pcts   = stats.map(function(d) { return d.avg_pct; });
+  var palette = ['#4e79a7','#f28e2b','#e15759','#76b7b2','#59a14f','#edc948','#b07aa1','#ff9da7'];
+
+  new Chart(document.getElementById('tbCountChart'), {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [{ label: 'จำนวนผู้ป่วย', data: counts,
+        backgroundColor: palette.slice(0, labels.length) }]
+    },
+    options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+  });
+
+  new Chart(document.getElementById('tbAdherenceChart'), {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [{ label: '% Adherence เฉลี่ย', data: pcts,
+        backgroundColor: pcts.map(function(v) {
+          return v >= 90 ? '#198754' : v >= 70 ? '#ffc107' : '#dc3545';
+        }) }]
+    },
+    options: { plugins: { legend: { display: false } }, scales: { y: { min: 0, max: 100 } } }
+  });
+})();
+</script>
 {% endif %}
 {% endblock %}

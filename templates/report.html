@@ -3,9 +3,8 @@
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
   <h1 class="h3 mb-0">รายงาน Adherence รายเดือน</h1>
   <div class="d-flex gap-2">
-    <a href="{{ url_for('report_export', year=year, month=month) }}" class="btn btn-outline-success btn-sm">
-      &#8595; Export CSV
-    </a>
+    <a href="{{ url_for('report_export', year=year, month=month) }}" class="btn btn-outline-success btn-sm">&#8595; Export CSV</a>
+    <a href="{{ url_for('report_export_xlsx', year=year, month=month) }}" class="btn btn-outline-success btn-sm">&#8595; Export Excel</a>
   </div>
 </div>
 
@@ -76,6 +75,14 @@
   </div>
 </div>
 
+{# Trend chart #}
+{% if trend_data %}
+<div class="card mb-3">
+  <div class="card-header fw-semibold">แนวโน้ม Adherence รายเดือน (6 เดือนล่าสุด)</div>
+  <div class="card-body"><canvas id="trendChart" height="80"></canvas></div>
+</div>
+{% endif %}
+
 {# Report table #}
 <div class="table-responsive">
   <table class="table table-bordered table-hover align-middle table-sm">
@@ -125,5 +132,36 @@
 
 {% if not report_rows or report_rows|selectattr('total', 'gt', 0)|list|length == 0 %}
 <div class="alert alert-secondary text-center">ไม่มีข้อมูลยาสำหรับเดือนนี้</div>
+{% endif %}
+
+{% if trend_data %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+  var data = {{ trend_data | tojson }};
+  new Chart(document.getElementById('trendChart'), {
+    type: 'line',
+    data: {
+      labels: data.map(function(d) { return d.label; }),
+      datasets: [{
+        label: '% Adherence เฉลี่ย',
+        data: data.map(function(d) { return d.avg_pct; }),
+        borderColor: '#198754',
+        backgroundColor: 'rgba(25,135,84,0.1)',
+        fill: true,
+        tension: 0.3,
+        spanGaps: false,
+        pointRadius: 5
+      }]
+    },
+    options: {
+      scales: {
+        y: { min: 0, max: 100, title: { display: true, text: '% Adherence' } }
+      },
+      plugins: { legend: { display: false } }
+    }
+  });
+})();
+</script>
 {% endif %}
 {% endblock %}

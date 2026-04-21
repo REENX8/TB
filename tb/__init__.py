@@ -31,6 +31,7 @@ ENDPOINT_ALIASES = {
     "dashboard": "report.dashboard",
     "report": "report.report",
     "report_export": "report.report_export",
+    "report_export_xlsx": "report.report_export_xlsx",
     "ping": "report.ping",
     "audit_log": "audit.audit_log",
 }
