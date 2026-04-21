@@ -7,8 +7,8 @@ from datetime import date
 from io import BytesIO, StringIO
 
 import openpyxl
-from openpyxl.styles import Font, PatternFill
 from flask import Blueprint, render_template, request, send_file
+from openpyxl.styles import Font, PatternFill
 from sqlalchemy import case as sa_case
 from sqlalchemy import func
 
