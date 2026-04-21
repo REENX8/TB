@@ -64,7 +64,7 @@
           {% for dname, dimg in drug_images.items() %}
           <div class="drug-pick-card" onclick="toggleDrugCard(this)" data-drug="{{ dname }}">
             <img src="{{ url_for('static', filename=dimg) }}" alt="{{ dname }}">
-            <div class="drug-pick-name">{{ dname }}</div>
+            <div class="drug-pick-name">{% if dname in injectable_drugs %}💉 {% endif %}{{ dname }}</div>
             <input type="number" class="drug-pick-count form-control form-control-sm"
                    step="0.5" min="0.5" placeholder="เม็ด" data-def="1"
                    style="display:none" onclick="event.stopPropagation()">

@@ -7,7 +7,12 @@ DRUG_IMAGES = {
     "PZA 500mg": "drugs/pza_500mg.jpg",
     "EMB 400mg": "drugs/emb_400mg.jpg",
     "EMB 500mg": "drugs/emb_500mg.jpg",
+    "Levofloxacin 500mg": "drugs/Levofloxacin 500 mg.jpg",
+    "Amikacin 500mg/2ml": "drugs/Amikacin 500 mg per 2 ml(vial).jpg",
+    "Streptomycin 1g/vial": "drugs/Streptomycin 1 g per vial.jpg",
 }
+
+INJECTABLE_DRUGS = frozenset({"Amikacin 500mg/2ml", "Streptomycin 1g/vial"})
 
 THAI_MONTHS = [
     "", "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.",

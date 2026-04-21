@@ -5,7 +5,7 @@ from datetime import date
 
 from flask import Flask
 
-from tb.constants import DRUG_IMAGES, THAI_MONTHS
+from tb.constants import DRUG_IMAGES, INJECTABLE_DRUGS, THAI_MONTHS
 from tb.time_utils import today_th
 
 
@@ -24,6 +24,7 @@ def register(app: Flask) -> None:
             date=date,
             today_th=today_th,
             drug_images=DRUG_IMAGES,
+            injectable_drugs=INJECTABLE_DRUGS,
         )
 
     @app.template_filter("thai_month")
