@@ -108,7 +108,7 @@
       text-align: center;
     }
     .adherence-pct {
-      font-size: 2.2rem;
+      font-size: 1.8rem;
       font-weight: 800;
       line-height: 1;
       white-space: nowrap;
@@ -196,11 +196,11 @@
             <div class="progress-label">ความสม่ำเสมอ</div>
           </div>
           <div class="col-8">
-            <div class="progress mb-2" style="height:10px; border-radius:6px;">
+            <div class="progress mb-2" style="height:7px; border-radius:6px;">
               <div class="progress-bar {% if stats.adherence_pct >= 90 %}bg-success{% elif stats.adherence_pct >= 70 %}bg-warning{% else %}bg-danger{% endif %}"
                    style="width:{{ stats.adherence_pct }}%;"></div>
             </div>
-            <div class="progress-label">กินแล้ว {{ stats.taken }} จาก {{ stats.total_past }}</div>
+            <div class="progress-label">กินแล้ว {{ stats.taken }} วัน จาก {{ stats.total_past }} วัน</div>
             {% if stats.overdue > 0 %}
             <span class="badge bg-danger overdue-badge mt-1">ค้าง {{ stats.overdue }} วัน</span>
             {% endif %}
