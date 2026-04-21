@@ -145,7 +145,7 @@
         <div class="drug-card">
           <img src="{{ url_for('static', filename=drug_images.get(name, 'drugs/inh_100mg.jpg')) }}" alt="{{ name }}">
           <div class="drug-name">{{ name }}</div>
-          <div class="drug-count">{{ count }} เม็ด</div>
+          <div class="drug-count">{{ count }}{% if name not in injectable_drugs %} เม็ด{% endif %}</div>
         </div>
         {% endfor %}
       </div>
@@ -161,7 +161,7 @@
         <div class="drug-card">
           <img src="{{ url_for('static', filename=drug_images.get(name, 'drugs/inh_100mg.jpg')) }}" alt="{{ name }}">
           <div class="drug-name">{{ name }}</div>
-          <div class="drug-count">{{ count }} เม็ด</div>
+          <div class="drug-count">{{ count }}{% if name not in injectable_drugs %} เม็ด{% endif %}</div>
         </div>
         {% endfor %}
       </div>
