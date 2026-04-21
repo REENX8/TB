@@ -19,57 +19,68 @@
       overflow: hidden;
       box-shadow: 0 6px 32px rgba(0,0,0,0.12);
     }
-    /* Header */
     .scan-header {
-      padding: 20px 20px 14px;
+      padding: 22px 20px 18px;
       text-align: center;
     }
     .scan-header .patient-name {
-      font-size: 1.25rem;
+      font-size: 1.4rem;
       font-weight: 700;
       opacity: .95;
     }
     .scan-header .sub {
-      font-size: 0.82rem;
+      font-size: 0.88rem;
       opacity: .75;
+      margin-top: 2px;
     }
-    /* Drug grid */
     .drug-grid {
       display: flex;
       flex-wrap: wrap;
-      gap: 10px;
+      gap: 14px;
       justify-content: center;
     }
     .drug-card {
       background: #e8f5e9;
-      border-radius: 14px;
-      padding: 10px 10px 8px;
+      border-radius: 16px;
+      padding: 14px 12px 10px;
       text-align: center;
-      width: 108px;
+      width: 130px;
+    }
+    .drug-img-wrap {
+      position: relative;
+      display: inline-block;
     }
     .drug-card img {
-      width: 68px;
-      height: 68px;
+      width: 86px;
+      height: 86px;
       object-fit: contain;
-      border-radius: 8px;
+      border-radius: 10px;
       background: #fff;
     }
+    .inject-badge {
+      position: absolute;
+      top: 3px;
+      right: 3px;
+      font-size: 1.2rem;
+      line-height: 1;
+      filter: drop-shadow(0 1px 2px rgba(0,0,0,.3));
+    }
     .drug-card .drug-name {
-      font-size: 0.7rem;
+      font-size: 0.75rem;
       color: #444;
-      margin-top: 5px;
+      margin-top: 6px;
       line-height: 1.3;
     }
     .drug-card .drug-count {
-      font-size: 1rem;
+      font-size: 1.4rem;
       font-weight: 700;
       color: #1b5e20;
+      margin-top: 2px;
     }
-    /* Confirm button */
     .confirm-btn {
       width: 100%;
-      padding: 18px;
-      font-size: 1.25rem;
+      padding: 20px;
+      font-size: 1.35rem;
       font-weight: 700;
       border-radius: 14px;
       letter-spacing: 0.02em;
@@ -79,11 +90,10 @@
     }
     @keyframes pulse-btn {
       0%, 100% { box-shadow: 0 0 0 0 rgba(25,135,84,.35); }
-      50%       { box-shadow: 0 0 0 10px rgba(25,135,84,0); }
+      50%       { box-shadow: 0 0 0 12px rgba(25,135,84,0); }
     }
-    /* Success */
     .success-icon {
-      font-size: 5rem;
+      font-size: 6rem;
       color: #198754;
       animation: pop-in .4s cubic-bezier(.175,.885,.32,1.275);
     }
@@ -91,28 +101,22 @@
       from { transform: scale(0); opacity: 0; }
       to   { transform: scale(1); opacity: 1; }
     }
-    /* Progress bar */
-    .progress-label {
-      font-size: 0.78rem;
-      color: #555;
-    }
-    /* History */
-    .history-row { font-size: 0.85rem; }
-    /* Adherence ring (simple) */
     .adherence-block {
       background: #f8f9fa;
-      border-radius: 12px;
-      padding: 10px 16px;
+      border-radius: 14px;
+      padding: 14px 18px;
       text-align: center;
     }
     .adherence-pct {
-      font-size: 2rem;
+      font-size: 3rem;
       font-weight: 800;
       line-height: 1;
     }
-    .overdue-badge {
-      font-size: 0.78rem;
+    .progress-label {
+      font-size: 0.85rem;
+      color: #555;
     }
+    .overdue-badge { font-size: 0.82rem; }
   </style>
 </head>
 <body>
@@ -122,44 +126,40 @@
     <div class="scan-header bg-primary text-white">
       <div class="patient-name">{{ patient.name }}</div>
       <div class="sub">วันที่ {{ today.strftime('%d/%m/%Y') }}</div>
-      {# Treatment progress #}
-      {% if total_days > 0 %}
-      <div class="mt-2 px-2">
-        <div class="progress" style="height:6px; border-radius:4px;">
-          <div class="progress-bar bg-white bg-opacity-75"
-               style="width: {{ [(taken_days / total_days * 100)|round|int, 100]|min }}%;"></div>
-        </div>
-        <div class="sub mt-1">กินยาแล้ว {{ taken_days }} / {{ total_days }} วัน</div>
-      </div>
-      {% endif %}
     </div>
 
     {% if today_dose and today_dose.taken %}
     {# ===== Already taken ===== #}
-    <div class="card-body text-center py-4 px-3">
+    <div class="card-body text-center py-5 px-3">
       <div class="success-icon mb-2">&#10004;</div>
       <h2 class="mb-1 fw-bold">กินยาแล้ววันนี้!</h2>
-      <p class="text-muted mb-1" style="font-size:.9rem;">เวลา {{ today_dose.taken_time.strftime('%H:%M น.') if today_dose.taken_time else '-' }}</p>
-      <div class="drug-grid my-3">
+      <p class="text-muted mb-1" style="font-size:.95rem;">เวลา {{ today_dose.taken_time.strftime('%H:%M น.') if today_dose.taken_time else '-' }}</p>
+      <div class="drug-grid my-4">
         {% for name, count in today_dose.medications.items() %}
         <div class="drug-card">
-          <img src="{{ url_for('static', filename=drug_images.get(name, 'drugs/inh_100mg.jpg')) }}" alt="{{ name }}">
+          <div class="drug-img-wrap">
+            <img src="{{ url_for('static', filename=drug_images.get(name, 'drugs/inh_100mg.jpg')) }}" alt="{{ name }}">
+            {% if name in injectable_drugs %}<span class="inject-badge">💉</span>{% endif %}
+          </div>
           <div class="drug-name">{{ name }}</div>
           <div class="drug-count">{{ count }}{% if name not in injectable_drugs %} เม็ด{% endif %}</div>
         </div>
         {% endfor %}
       </div>
-      <p class="text-success fw-semibold mb-0">ขอบคุณที่รักษาต่อเนื่อง &#128522;</p>
+      <p class="text-success fw-semibold mb-0" style="font-size:1rem;">ขอบคุณที่รักษาต่อเนื่อง &#128522;</p>
     </div>
 
     {% elif today_dose and not today_dose.taken %}
     {# ===== Not yet taken ===== #}
-    <div class="card-body text-center px-3 pt-3">
-      <p class="text-muted mb-2" style="font-size:.9rem;">รายการยาที่ต้องกินวันนี้</p>
-      <div class="drug-grid mb-4">
+    <div class="card-body text-center px-3 pt-4">
+      <p class="text-muted mb-3" style="font-size:.95rem;">รายการยาที่ต้องกินวันนี้</p>
+      <div class="drug-grid mb-5">
         {% for name, count in today_dose.medications.items() %}
         <div class="drug-card">
-          <img src="{{ url_for('static', filename=drug_images.get(name, 'drugs/inh_100mg.jpg')) }}" alt="{{ name }}">
+          <div class="drug-img-wrap">
+            <img src="{{ url_for('static', filename=drug_images.get(name, 'drugs/inh_100mg.jpg')) }}" alt="{{ name }}">
+            {% if name in injectable_drugs %}<span class="inject-badge">💉</span>{% endif %}
+          </div>
           <div class="drug-name">{{ name }}</div>
           <div class="drug-count">{{ count }}{% if name not in injectable_drugs %} เม็ด{% endif %}</div>
         </div>
@@ -171,21 +171,21 @@
           &#10004;&ensp;กินยาแล้ว
         </button>
       </form>
-      <p class="text-muted mt-2" style="font-size:0.78rem;">กดปุ่มเพื่อยืนยันว่ากินยาครบแล้ว</p>
+      <p class="text-muted mt-2" style="font-size:0.82rem;">กดปุ่มเพื่อยืนยันว่ากินยาครบแล้ว</p>
     </div>
 
     {% else %}
     {# ===== No dose today ===== #}
     <div class="card-body text-center py-5 px-3">
-      <div style="font-size:3rem;">&#128138;</div>
-      <h5 class="mt-2 mb-1">ไม่มียาวันนี้</h5>
-      <p class="text-muted" style="font-size:.9rem;">ไม่มีกำหนดกินยาสำหรับวันที่ {{ today.strftime('%d/%m/%Y') }}</p>
+      <div style="font-size:4rem;">&#128138;</div>
+      <h4 class="mt-3 mb-1">ไม่มียาวันนี้</h4>
+      <p class="text-muted" style="font-size:.95rem;">ไม่มีกำหนดกินยาสำหรับวันที่ {{ today.strftime('%d/%m/%Y') }}</p>
     </div>
     {% endif %}
 
     {# ===== Adherence summary ===== #}
     {% if stats.total_past > 0 %}
-    <div class="px-3 pb-2">
+    <div class="px-3 pb-4 pt-1">
       <div class="adherence-block">
         <div class="row align-items-center">
           <div class="col-4 text-center">
@@ -195,7 +195,7 @@
             <div class="progress-label">ความสม่ำเสมอ</div>
           </div>
           <div class="col-8">
-            <div class="progress mb-1" style="height:8px; border-radius:6px;">
+            <div class="progress mb-2" style="height:10px; border-radius:6px;">
               <div class="progress-bar {% if stats.adherence_pct >= 90 %}bg-success{% elif stats.adherence_pct >= 70 %}bg-warning{% else %}bg-danger{% endif %}"
                    style="width:{{ stats.adherence_pct }}%;"></div>
             </div>
@@ -206,25 +206,6 @@
           </div>
         </div>
       </div>
-    </div>
-    {% endif %}
-
-    {# ===== Recent 7-day history ===== #}
-    {% if recent_doses %}
-    <div class="card-footer bg-white px-3 pt-2 pb-3">
-      <p class="text-muted mb-2" style="font-size:0.82rem;"><strong>ประวัติ 7 วันล่าสุด</strong></p>
-      {% for d in recent_doses %}
-      <div class="d-flex justify-content-between align-items-center history-row py-1 {% if not loop.last %}border-bottom{% endif %}">
-        <span>{{ d.date.strftime('%d/%m') }}</span>
-        {% if d.taken %}
-          <span class="badge bg-success">กินแล้ว {{ d.taken_time.strftime('%H:%M') if d.taken_time else '' }}</span>
-        {% elif d.date < today %}
-          <span class="badge bg-danger">ค้าง</span>
-        {% else %}
-          <span class="badge bg-warning text-dark">รอกิน</span>
-        {% endif %}
-      </div>
-      {% endfor %}
     </div>
     {% endif %}
 

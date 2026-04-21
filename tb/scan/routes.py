@@ -1,14 +1,14 @@
 """QR code and patient scan routes."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from io import BytesIO
 
 from flask import Blueprint, redirect, render_template, request, send_file, session, url_for
 
 from tb.adherence import get_adherence_stats
 from tb.extensions import csrf, db
-from tb.models import INJECTABLE_DRUGS, MedicationDose, Patient
+from tb.models import MedicationDose, Patient
 from tb.qr_utils import create_qr_code
 from tb.security import staff_required
 from tb.time_utils import TZ_THAI, today_th
@@ -59,28 +59,12 @@ def scan_patient(token: str):
             session[cooldown_key] = now_ts
         return redirect(url_for("scan_patient", token=token))
 
-    week_ago = today - timedelta(days=6)
-    recent_doses = MedicationDose.query.filter(
-        MedicationDose.patient_id == patient.id,
-        MedicationDose.date >= week_ago,
-        MedicationDose.date <= today,
-    ).order_by(MedicationDose.date.desc()).all()
-
     stats = get_adherence_stats(patient)
-
-    total_days = stats["total_all"]
-    taken_days = stats["taken"]
-    treatment_day = (today - patient.start_date).days + 1
 
     return render_template(
         "scan.html",
         patient=patient,
         today_dose=today_dose,
         today=today,
-        recent_doses=recent_doses,
         stats=stats,
-        total_days=total_days,
-        taken_days=taken_days,
-        treatment_day=treatment_day,
-        injectable_drugs=INJECTABLE_DRUGS,
     )
