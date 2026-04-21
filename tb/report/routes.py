@@ -243,6 +243,39 @@ def report_export_xlsx():
     )
 
 
+@bp.route("/dashboard/missed-today")
+@staff_required
+def dashboard_missed_today():
+    today = today_th()
+    patients = Patient.query.filter_by(archived=False).order_by(Patient.id).all()
+    patient_ids = [p.id for p in patients]
+    today_doses = {}
+    if patient_ids:
+        today_doses = {
+            d.patient_id: d for d in MedicationDose.query.filter(
+                MedicationDose.patient_id.in_(patient_ids),
+                MedicationDose.date == today,
+            ).all()
+        }
+    missed = [
+        {"patient": p, "today_dose": today_doses[p.id]}
+        for p in patients
+        if p.id in today_doses and not today_doses[p.id].taken
+    ]
+    return render_template("missed_today.html", missed=missed, today=today)
+
+
+@bp.route("/dashboard/at-risk")
+@staff_required
+def dashboard_at_risk():
+    today = today_th()
+    patients = Patient.query.filter_by(archived=False).order_by(Patient.id).all()
+    patient_ids = [p.id for p in patients]
+    stats_map = get_adherence_stats_bulk(patient_ids, today)
+    at_risk = get_at_risk_patients(patients, stats_map, today)
+    return render_template("at_risk.html", at_risk=at_risk, today=today)
+
+
 @bp.route("/ping")
 def ping():
     return "ok", 200

@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="h3 mb-0">ผู้ป่วยเสี่ยงขาดยา</h1>
+  <a href="{{ url_for('dashboard') }}" class="btn btn-secondary btn-sm">กลับ Dashboard</a>
+</div>
+<p class="text-muted">เกณฑ์: adherence &lt;70% หรือขาดยาติดต่อกัน &ge;2 วัน</p>
+
+{% if at_risk %}
+<div class="table-responsive">
+  <table class="table table-bordered table-hover align-middle">
+    <thead class="table-danger">
+      <tr>
+        <th>ชื่อ</th>
+        <th>HN</th>
+        <th>เบอร์โทร</th>
+        <th class="text-center">ขาดติดต่อกัน (วัน)</th>
+        <th class="text-center">Adherence %</th>
+        <th>กินยาล่าสุด</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in at_risk %}
+      <tr>
+        <td class="fw-semibold">{{ row.patient.name }}</td>
+        <td>{{ row.patient.hn }}</td>
+        <td>
+          {% if row.patient.phone %}
+            <a href="tel:{{ row.patient.phone }}">{{ row.patient.phone }}</a>
+          {% else %}-{% endif %}
+        </td>
+        <td class="text-center">
+          {% if row.consecutive_missed >= 2 %}
+            <span class="badge bg-danger">{{ row.consecutive_missed }}</span>
+          {% else %}
+            {{ row.consecutive_missed }}
+          {% endif %}
+        </td>
+        <td class="text-center {% if row.adherence_pct < 70 %}text-danger fw-semibold{% endif %}">
+          {{ row.adherence_pct }}%
+        </td>
+        <td>{{ row.last_taken_date.strftime('%Y-%m-%d') if row.last_taken_date else '-' }}</td>
+        <td>
+          <a href="{{ url_for('view_patient', id=row.patient.id) }}" class="btn btn-sm btn-outline-primary">ดู</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="alert alert-success">&#10004; ไม่มีผู้ป่วยที่อยู่ในเกณฑ์เสี่ยงขาดยา</div>
+{% endif %}
+{% endblock %}

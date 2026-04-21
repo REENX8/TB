@@ -2,60 +2,45 @@
 {% block content %}
 <h1 class="h3 mb-3">Dashboard เจ้าหน้าที่</h1>
 
-{# ---------- Today's dose alert ---------- #}
-{% if missed_today %}
-<div class="alert alert-warning mb-4">
-  <strong>&#9888; ยังไม่กินยาวันนี้ ({{ missed_today|length }} ราย)</strong>
-  <ul class="mb-0 mt-2">
-    {% for p in missed_today %}
-    <li>
-      <a href="{{ url_for('view_patient', id=p.id) }}" class="alert-link fw-semibold">{{ p.name }}</a>
-      <span class="text-muted small">HN: {{ p.hn }}{% if p.phone %} &nbsp;|&nbsp; <a href="tel:{{ p.phone }}" class="alert-link">{{ p.phone }}</a>{% endif %}</span>
-    </li>
-    {% endfor %}
-  </ul>
-</div>
-{% elif scheduled_today_count > 0 %}
-<div class="alert alert-success mb-4">
-  &#10004; ผู้ป่วยทุกรายที่มีนัดวันนี้กินยาครบแล้ว ({{ scheduled_today_count }} ราย)
-</div>
-{% endif %}
-
-{# ---------- At-risk patients ---------- #}
-{% if at_risk %}
-<div class="card border-danger mb-4">
-  <div class="card-header bg-danger text-white fw-semibold">
-    &#9888; ผู้ป่วยเสี่ยงขาดยา ({{ at_risk|length }} ราย)
+{# ---------- Alert summary cards ---------- #}
+<div class="row mb-4">
+  <div class="col-md-6 mb-2">
+    <a href="{{ url_for('dashboard_missed_today') }}" class="text-decoration-none">
+      <div class="card h-100 {% if missed_today %}border-warning{% else %}border-success{% endif %} hover-shadow">
+        <div class="card-body d-flex align-items-center gap-3">
+          <div class="fs-1">{% if missed_today %}&#9888;{% else %}&#10004;{% endif %}</div>
+          <div>
+            {% if missed_today %}
+            <h4 class="mb-0 text-warning">{{ missed_today|length }} ราย</h4>
+            <div class="text-muted small">ยังไม่กินยาวันนี้ — คลิกดูรายชื่อ</div>
+            {% else %}
+            <h4 class="mb-0 text-success">ครบทุกราย</h4>
+            <div class="text-muted small">กินยาวันนี้ครบแล้ว ({{ scheduled_today_count }} ราย)</div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </a>
   </div>
-  <div class="table-responsive">
-    <table class="table table-sm table-hover mb-0 align-middle">
-      <thead class="table-light">
-        <tr>
-          <th>ชื่อ</th><th>HN</th><th>เบอร์โทร</th>
-          <th class="text-center">ขาดติดต่อกัน (วัน)</th>
-          <th class="text-center">Adherence %</th>
-          <th>กินยาล่าสุด</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for row in at_risk %}
-        <tr>
-          <td><a href="{{ url_for('view_patient', id=row.patient.id) }}" class="fw-semibold text-danger text-decoration-none">{{ row.patient.name }}</a></td>
-          <td>{{ row.patient.hn }}</td>
-          <td>{% if row.patient.phone %}<a href="tel:{{ row.patient.phone }}">{{ row.patient.phone }}</a>{% else %}-{% endif %}</td>
-          <td class="text-center">
-            {% if row.consecutive_missed >= 2 %}<span class="badge bg-danger">{{ row.consecutive_missed }}</span>
-            {% else %}{{ row.consecutive_missed }}{% endif %}
-          </td>
-          <td class="text-center {% if row.adherence_pct < 70 %}text-danger fw-semibold{% endif %}">{{ row.adherence_pct }}%</td>
-          <td>{{ row.last_taken_date.strftime('%Y-%m-%d') if row.last_taken_date else '-' }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+  <div class="col-md-6 mb-2">
+    <a href="{{ url_for('dashboard_at_risk') }}" class="text-decoration-none">
+      <div class="card h-100 {% if at_risk %}border-danger{% else %}border-success{% endif %} hover-shadow">
+        <div class="card-body d-flex align-items-center gap-3">
+          <div class="fs-1">{% if at_risk %}&#128276;{% else %}&#10004;{% endif %}</div>
+          <div>
+            {% if at_risk %}
+            <h4 class="mb-0 text-danger">{{ at_risk|length }} ราย</h4>
+            <div class="text-muted small">เสี่ยงขาดยา — คลิกดูรายชื่อ</div>
+            {% else %}
+            <h4 class="mb-0 text-success">ไม่มี</h4>
+            <div class="text-muted small">ไม่มีผู้ป่วยเสี่ยงขาดยา</div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </a>
   </div>
 </div>
-{% endif %}
 
 {# ---------- Summary cards ---------- #}
 <div class="row mb-4">
