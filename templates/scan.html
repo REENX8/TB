@@ -108,9 +108,10 @@
       text-align: center;
     }
     .adherence-pct {
-      font-size: 3rem;
+      font-size: 2.2rem;
       font-weight: 800;
       line-height: 1;
+      white-space: nowrap;
     }
     .progress-label {
       font-size: 0.85rem;
@@ -199,7 +200,7 @@
               <div class="progress-bar {% if stats.adherence_pct >= 90 %}bg-success{% elif stats.adherence_pct >= 70 %}bg-warning{% else %}bg-danger{% endif %}"
                    style="width:{{ stats.adherence_pct }}%;"></div>
             </div>
-            <div class="progress-label">กินแล้ว {{ stats.taken }} วัน จาก {{ stats.total_past }} วันที่ผ่านมา</div>
+            <div class="progress-label">กินแล้ว {{ stats.taken }} จาก {{ stats.total_past }}</div>
             {% if stats.overdue > 0 %}
             <span class="badge bg-danger overdue-badge mt-1">ค้าง {{ stats.overdue }} วัน</span>
             {% endif %}
