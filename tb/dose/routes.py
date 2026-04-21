@@ -24,7 +24,7 @@ def mark_dose(id: int, dose_id: int):
     ).first_or_404()
     if not dose.taken:
         dose.taken = True
-        dose.taken_time = datetime.now(TZ_THAI)
+        dose.taken_time = datetime.now(TZ_THAI).replace(tzinfo=None)
         db.session.commit()
         log_audit("MARK_DOSE", patient=dose.patient, detail=f"วันที่ {dose.date}")
         flash(

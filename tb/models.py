@@ -65,7 +65,7 @@ class AuditLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     timestamp = db.Column(
         db.DateTime, nullable=False,
-        default=lambda: datetime.now(TZ_THAI), index=True,
+        default=lambda: datetime.now(TZ_THAI).replace(tzinfo=None), index=True,
     )
     staff_user = db.Column(db.String(60), nullable=False)
     action = db.Column(db.String(60), nullable=False)

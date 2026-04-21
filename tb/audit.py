@@ -14,7 +14,7 @@ def log_audit(action: str, patient=None, detail: str | None = None) -> None:
     """Write an audit log entry. Pulls staff_user from session."""
     try:
         entry = AuditLog(
-            timestamp=datetime.now(TZ_THAI),
+            timestamp=datetime.now(TZ_THAI).replace(tzinfo=None),
             staff_user=session.get("staff_user", "system"),
             action=action,
             patient_id=patient.id if patient else None,

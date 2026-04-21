@@ -54,7 +54,7 @@ def scan_patient(token: str):
         now_ts = datetime.now(TZ_THAI).timestamp()
         if now_ts - last_ts >= 30:
             today_dose.taken = True
-            today_dose.taken_time = datetime.now(TZ_THAI)
+            today_dose.taken_time = datetime.now(TZ_THAI).replace(tzinfo=None)
             db.session.commit()
             session[cooldown_key] = now_ts
         return redirect(url_for("scan_patient", token=token))
