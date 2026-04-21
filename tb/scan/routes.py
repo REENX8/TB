@@ -8,7 +8,7 @@ from flask import Blueprint, redirect, render_template, request, send_file, sess
 
 from tb.adherence import get_adherence_stats
 from tb.extensions import csrf, db
-from tb.models import MedicationDose, Patient
+from tb.models import INJECTABLE_DRUGS, MedicationDose, Patient
 from tb.qr_utils import create_qr_code
 from tb.security import staff_required
 from tb.time_utils import TZ_THAI, today_th
@@ -82,4 +82,5 @@ def scan_patient(token: str):
         total_days=total_days,
         taken_days=taken_days,
         treatment_day=treatment_day,
+        injectable_drugs=INJECTABLE_DRUGS,
     )
