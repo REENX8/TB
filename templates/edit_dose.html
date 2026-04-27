@@ -16,7 +16,7 @@
           <img src="{{ url_for('static', filename=dimg) }}" alt="{{ dname }}">
           <div class="drug-pick-name">{% if dname in injectable_drugs %}💉 {% endif %}{{ dname }}</div>
           <input type="number" class="drug-pick-count form-control form-control-sm"
-                 step="0.5" min="0.5" placeholder="เม็ด"
+                 step="0.5" min="0" placeholder="เม็ด"
                  value="{{ cur_count if cur_count else '' }}"
                  data-def="{{ cur_count if cur_count else 1 }}"
                  style="{{ '' if cur_count else 'display:none' }}"
@@ -27,6 +27,9 @@
     </div>
   </div>
   <button type="submit" class="btn btn-primary">บันทึก</button>
+  <button type="submit" name="stop_meds" value="1" class="btn btn-danger"
+          data-date="{{ dose.date.strftime('%Y-%m-%d') }}"
+          onclick="return confirm('ยืนยันหยุดยาวันที่ ' + this.dataset.date + '?')">หยุดยา</button>
   <a href="{{ url_for('view_patient', id=patient.id) }}" class="btn btn-secondary">ยกเลิก</a>
 </form>
 {% endblock %}

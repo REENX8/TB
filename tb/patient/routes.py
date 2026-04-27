@@ -396,6 +396,22 @@ def extend_schedule(id: int):
             else:
                 flash("กรุณาระบุยาอย่างน้อย 1 รายการ", "danger")
 
+        elif action == "stop_future":
+            today = today_th()
+            updated = db.session.execute(
+                MedicationDose.__table__.update()
+                .where(MedicationDose.__table__.c.patient_id == patient.id)
+                .where(MedicationDose.__table__.c.date >= today)
+                .where(MedicationDose.__table__.c.taken == False)
+                .values(medications_json=json.dumps({}))
+            )
+            db.session.commit()
+            log_audit(
+                "STOP_FUTURE", patient=patient,
+                detail=f"หยุดยา {updated.rowcount} วันที่เหลือ",
+            )
+            flash(f"หยุดยาสำหรับ {updated.rowcount} วันที่เหลือ", "success")
+
         return redirect(url_for("view_patient", id=id))
 
     removable_days = MedicationDose.query.filter_by(

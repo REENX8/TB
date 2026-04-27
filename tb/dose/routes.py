@@ -61,27 +61,29 @@ def edit_dose(id: int, dose_id: int):
     ).first_or_404()
 
     if request.method == "POST":
-        new_meds = {}
-        drug_names = request.form.getlist("drug_name")
-        drug_counts = request.form.getlist("drug_count")
-        for dname, dcount in zip(drug_names, drug_counts):
-            dname = dname.strip()
-            if dname and dcount.strip():
-                try:
-                    new_meds[dname] = parse_count(dcount)
-                except ValueError:
-                    pass
-        if new_meds:
-            dose.medications = new_meds
-            db.session.commit()
-            log_audit(
-                "EDIT_DOSE", patient=patient,
-                detail=f"วันที่ {dose.date}, ยา: {new_meds}",
-            )
-            flash(f"แก้ไขยาวันที่ {dose.date.strftime('%Y-%m-%d')} เรียบร้อย", "success")
+        stop = request.form.get("stop_meds")
+        new_meds: dict = {}
+        if not stop:
+            drug_names = request.form.getlist("drug_name")
+            drug_counts = request.form.getlist("drug_count")
+            for dname, dcount in zip(drug_names, drug_counts):
+                dname = dname.strip()
+                if dname and dcount.strip():
+                    try:
+                        new_meds[dname] = parse_count(dcount)
+                    except ValueError:
+                        pass
+            if not new_meds:
+                flash("กรุณาระบุยาอย่างน้อย 1 รายการ", "danger")
+                return render_template("edit_dose.html", patient=patient, dose=dose)
+        dose.medications = new_meds
+        db.session.commit()
+        if stop:
+            log_audit("EDIT_DOSE", patient=patient, detail=f"วันที่ {dose.date}, หยุดยา")
+            flash(f"หยุดยาวันที่ {dose.date.strftime('%Y-%m-%d')} เรียบร้อย", "success")
         else:
-            flash("กรุณาระบุยาอย่างน้อย 1 รายการ", "danger")
-            return render_template("edit_dose.html", patient=patient, dose=dose)
+            log_audit("EDIT_DOSE", patient=patient, detail=f"วันที่ {dose.date}, ยา: {new_meds}")
+            flash(f"แก้ไขยาวันที่ {dose.date.strftime('%Y-%m-%d')} เรียบร้อย", "success")
         return redirect(url_for("view_patient", id=id))
 
     return render_template("edit_dose.html", patient=patient, dose=dose)

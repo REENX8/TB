@@ -30,7 +30,7 @@
             <img src="{{ url_for('static', filename=dimg) }}" alt="{{ dname }}">
             <div class="drug-pick-name">{% if dname in injectable_drugs %}💉 {% endif %}{{ dname }}</div>
             <input type="number" class="drug-pick-count form-control form-control-sm"
-                   step="0.5" min="0.5" placeholder="เม็ด" data-def="1"
+                   step="0.5" min="0" placeholder="เม็ด" data-def="1"
                    style="display:none" onclick="event.stopPropagation()">
           </div>
           {% endfor %}
@@ -94,7 +94,7 @@
           <img src="{{ url_for('static', filename=dimg) }}" alt="{{ dname }}">
           <div class="drug-pick-name">{{ dname }}</div>
           <input type="number" class="drug-pick-count form-control form-control-sm"
-                 step="0.5" min="0.5" placeholder="เม็ด"
+                 step="0.5" min="0" placeholder="เม็ด"
                  value="{{ cur_count if cur_count else '' }}"
                  data-def="{{ cur_count if cur_count else 1 }}"
                  style="{{ '' if cur_count else 'display:none' }}"
@@ -104,6 +104,12 @@
       </div>
       <button type="submit" class="btn btn-warning mt-2"
               onclick="return confirm('ยืนยันเปลี่ยนยาสำหรับวันที่เหลือทั้งหมด?')">อัปเดตยาทั้งหมด</button>
+    </form>
+    <hr>
+    <form method="post" onsubmit="return confirm('ยืนยันหยุดยาสำหรับวันที่เหลือทั้งหมด?')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="stop_future" />
+      <button type="submit" class="btn btn-danger">หยุดยาทั้งหมดที่เหลือ</button>
     </form>
   </div>
 </div>
