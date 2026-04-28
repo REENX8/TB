@@ -22,7 +22,10 @@ def get_adherence_stats(patient: Patient) -> dict:
             (db.and_(MedicationDose.date <= today, MedicationDose.taken == True), 1),
             else_=0,
         )).label("taken"),
-    ).filter(MedicationDose.patient_id == patient.id).one()
+    ).filter(
+        MedicationDose.patient_id == patient.id,
+        MedicationDose.medications_json != '{}',
+    ).one()
     total_all = row.total_all or 0
     total_past = row.total_past or 0
     taken = row.taken or 0
@@ -49,7 +52,10 @@ def get_adherence_stats_bulk(patient_ids: list, today: date) -> dict:
             (db.and_(MedicationDose.date <= today, MedicationDose.taken == True), 1),
             else_=0,
         )).label("taken"),
-    ).filter(MedicationDose.patient_id.in_(patient_ids)).group_by(MedicationDose.patient_id).all()
+    ).filter(
+        MedicationDose.patient_id.in_(patient_ids),
+        MedicationDose.medications_json != '{}',
+    ).group_by(MedicationDose.patient_id).all()
 
     result = {}
     for row in rows:
@@ -80,6 +86,7 @@ def get_at_risk_patients(patients: list, stats_map: dict, today: date) -> list[d
         .filter(
             MedicationDose.patient_id.in_(candidate_ids),
             MedicationDose.date <= today,
+            MedicationDose.medications_json != '{}',
         )
         .order_by(MedicationDose.patient_id, MedicationDose.date.desc())
         .with_entities(MedicationDose.patient_id, MedicationDose.date, MedicationDose.taken)
