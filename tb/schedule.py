@@ -52,6 +52,8 @@ def build_calendar(patient: Patient, year: int, month: int) -> list:
         dose = doses_by_date.get(current_date)
         if dose is None:
             status = "no_schedule"
+        elif not dose.medications:
+            status = "stopped"
         elif dose.taken:
             status = "taken"
         elif current_date < today:

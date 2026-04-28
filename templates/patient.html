@@ -146,6 +146,8 @@
                   <span class="text-danger">&#10008;</span>
                 {% elif day.status == 'pending' %}
                   <span class="text-warning">&#9679;</span>
+                {% elif day.status == 'stopped' %}
+                  <span style="font-size:0.65rem;">หยุดยา</span>
                 {% else %}
                   <span class="text-muted">&mdash;</span>
                 {% endif %}
@@ -157,6 +159,7 @@
           <span><span class="badge" style="background:#d4edda;">&nbsp;</span> กินแล้ว</span>
           <span><span class="badge" style="background:#fff3cd;">&nbsp;</span> รอกิน</span>
           <span><span class="badge" style="background:#f8d7da;">&nbsp;</span> ค้าง/เลยกำหนด</span>
+          <span><span class="badge" style="background:#e2e3e5;">&nbsp;</span> หยุดยา</span>
           <span><span class="badge" style="background:#f8f9fa;">&nbsp;</span> ไม่มีนัด</span>
         </div>
       </div>
@@ -198,7 +201,7 @@
     </thead>
     <tbody>
       {% for dose in doses %}
-      <tr class="{% if not dose.taken and dose.date < today %}table-danger{% endif %}">
+      <tr class="{% if not dose.taken and dose.date < today and dose.medications %}table-danger{% elif not dose.medications %}table-secondary{% endif %}">
         <td>{{ dose.date.strftime('%Y-%m-%d') }}</td>
         <td>
           {% for name, count in dose.medications.items() %}
@@ -209,6 +212,8 @@
           {% if dose.taken %}
             <span class="badge bg-success">กินแล้ว</span>
             <small class="text-muted">{{ dose.taken_time.strftime('%Y-%m-%d %H:%M') if dose.taken_time else '' }}</small>
+          {% elif not dose.medications %}
+            <span class="badge bg-secondary">หยุดยา</span>
           {% elif dose.date < today %}
             <span class="badge bg-danger">ค้าง</span>
           {% else %}
@@ -216,12 +221,12 @@
           {% endif %}
         </td>
         <td>
-          {% if not dose.taken %}
+          {% if not dose.taken and dose.medications %}
           <form method="post" action="{{ url_for('mark_dose', id=patient.id, dose_id=dose.id) }}" class="d-inline">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn btn-sm btn-success mb-1">กินแล้ว</button>
           </form>
-          {% else %}
+          {% elif dose.taken %}
           <form method="post" action="{{ url_for('unmark_dose', id=patient.id, dose_id=dose.id) }}" class="d-inline" onsubmit="return confirm('ยืนยันยกเลิกการกินยาวันที่ {{ dose.date }}?');">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn btn-sm btn-outline-danger mb-1">ยกเลิก</button>
