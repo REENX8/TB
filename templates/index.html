@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
-  <h1 class="h3">รายชื่อผู้ป่วย</h1>
+  <h1 class="h3">รายชื่อผู้ป่วย {% if patient_stats %}<small class="text-muted fs-6">({{ patient_stats|length }} ราย)</small>{% endif %}</h1>
   <a href="{{ url_for('new_patient') }}" class="btn btn-primary">+ เพิ่มผู้ป่วย</a>
 </div>
 {% if patient_stats %}
@@ -15,6 +15,7 @@
         <th>ID</th>
         <th>ชื่อ</th>
         <th>HN</th>
+        <th>TB No.</th>
         <th>น้ำหนัก (kg)</th>
         <th>วันเริ่ม</th>
         <th>ความสม่ำเสมอ</th>
@@ -24,10 +25,11 @@
     </thead>
     <tbody>
       {% for row in patient_stats %}
-      <tr data-search="{{ (row.patient.name ~ ' ' ~ row.patient.hn)|lower }}">
+      <tr data-search="{{ (row.patient.name ~ ' ' ~ row.patient.hn ~ ' ' ~ row.patient.tb_no)|lower }}" style="cursor:pointer;" onclick="window.location='{{ url_for('view_patient', id=row.patient.id) }}'">
         <td>{{ row.patient.id }}</td>
-        <td>{{ row.patient.name }}</td>
+        <td class="fw-semibold">{{ row.patient.name }}</td>
         <td>{{ row.patient.hn }}</td>
+        <td>{{ row.patient.tb_no }}</td>
         <td>{{ row.patient.weight }}</td>
         <td>{{ row.patient.start_date.strftime('%Y-%m-%d') }}</td>
         <td>
@@ -61,7 +63,7 @@
           {% endif %}
         </td>
         <td>
-          <a href="{{ url_for('view_patient', id=row.patient.id) }}" class="btn btn-sm btn-outline-primary">ดู</a>
+          <a href="{{ url_for('view_patient', id=row.patient.id) }}" class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation()">ดู</a>
         </td>
       </tr>
       {% endfor %}
