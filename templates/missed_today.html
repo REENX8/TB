@@ -30,10 +30,7 @@
         </td>
         <td>
           {% for name, count in row.today_dose.medications.items() %}
-            <span class="badge bg-light text-dark me-1 d-inline-flex align-items-center gap-1">
-              {% if drug_images.get(name) %}<img src="{{ url_for('static', filename=drug_images[name]) }}" width="18" height="18" style="object-fit:contain;border-radius:2px;" alt="">{% endif %}
-              {{ name }}: {{ count }}
-            </span>
+            <span class="badge bg-light text-dark me-1">{{ name }}: {{ count }}</span>
           {% endfor %}
         </td>
         <td>

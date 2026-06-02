@@ -42,10 +42,7 @@
     <div class="row align-items-center">
       <div class="col-md-6">
         {% for name, count in today_dose.medications.items() %}
-          <span class="badge bg-light text-dark me-1 mb-1 d-inline-flex align-items-center gap-1">
-            {% if drug_images.get(name) %}<img src="{{ url_for('static', filename=drug_images[name]) }}" width="20" height="20" style="object-fit:contain;border-radius:3px;" alt="">{% endif %}
-            {% if name in injectable_drugs %}💉 {% endif %}{{ name }}: {{ count }}{% if name not in injectable_drugs %} เม็ด{% endif %}
-          </span>
+          <span class="badge bg-light text-dark me-1 mb-1">{% if name in injectable_drugs %}💉 {% endif %}{{ name }}: {{ count }}{% if name not in injectable_drugs %} เม็ด{% endif %}</span>
         {% endfor %}
       </div>
       <div class="col-md-6 text-md-end mt-2 mt-md-0">
@@ -214,10 +211,7 @@
         <td>{{ dose.date.strftime('%Y-%m-%d') }}</td>
         <td>
           {% for name, count in dose.medications.items() %}
-            <span class="badge bg-light text-dark d-inline-flex align-items-center gap-1 me-1 mb-1">
-              {% if drug_images.get(name) %}<img src="{{ url_for('static', filename=drug_images[name]) }}" width="16" height="16" style="object-fit:contain;border-radius:2px;" alt="">{% endif %}
-              {% if name in injectable_drugs %}💉 {% endif %}{{ name }}: {{ count }}
-            </span>
+            <span class="badge bg-light text-dark">{% if name in injectable_drugs %}💉 {% endif %}{{ name }}: {{ count }}</span>
           {% endfor %}
         </td>
         <td>
