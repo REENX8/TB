@@ -3,37 +3,66 @@
 <head>
   <meta charset="utf-8">
   <title>ตารางยา — {{ patient.name }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: sans-serif; font-size: 11pt; padding: 12mm 14mm; color: #000; }
-    h2 { font-size: 13pt; margin-bottom: 6px; }
+    body { font-family: 'Noto Sans Thai', sans-serif; font-size: 11pt; padding: 12mm 14mm; color: #000; }
+    h2 { font-size: 13pt; margin-bottom: 4px; }
+    .patient-info-grid { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 4px; font-size: 9.5pt; color: #444; }
+    .patient-info-grid strong { color: #000; }
     .subheader { font-size: 10pt; color: #444; margin-bottom: 14px; }
-    table { width: 100%; border-collapse: collapse; font-size: 10pt; }
-    th { background: #222; color: #fff; padding: 5px 8px; text-align: center; }
+    table { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
+    th { background: #222; color: #fff; padding: 4px 6px; text-align: center; vertical-align: bottom; }
+    th.drug-col { padding: 4px 5px; }
+    .drug-thumb { width: 34px; height: 34px; object-fit: contain; display: block; margin: 0 auto 3px; border-radius: 3px; background: #fff; }
     td { border: 1px solid #aaa; padding: 5px 8px; }
     td:first-child { white-space: nowrap; }
     td.check { text-align: center; font-size: 14pt; }
     tr:nth-child(even) { background: #f7f7f7; }
+    tr { page-break-inside: avoid; }
     .footer { margin-top: 14px; font-size: 8.5pt; color: #666; border-top: 1px solid #ccc; padding-top: 6px; display: flex; justify-content: space-between; }
+    .no-print { margin-bottom: 12px; font-size: 9pt; color: #555; }
+    .no-print a { color: #0d6efd; text-decoration: none; margin-right: 6px; }
+    .no-print a:hover { text-decoration: underline; }
     @media print {
       body { padding: 8mm 10mm; }
       @page { size: A4 portrait; margin: 0; }
+      .no-print { display: none !important; }
+      .drug-thumb { display: block !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      table { font-size: 8.5pt; }
     }
   </style>
 </head>
 <body>
-  <h2>ตารางการกินยา — {{ patient.name }}</h2>
-  <div class="subheader">
-    {% set thai_months = ["","ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."] %}
-    {{ thai_months[month] }} {{ year }}
+  <div class="no-print">
+    <a href="{{ url_for('print_schedule', id=patient.id, year=prev_year, month=prev_month) }}">&laquo; เดือนก่อน</a>
+    <a href="{{ url_for('print_schedule', id=patient.id, year=next_year, month=next_month) }}">เดือนถัดไป &raquo;</a>
+    <a href="javascript:window.print()">🖨 พิมพ์</a>
   </div>
+
+  <h2>ตารางการกินยา — {{ patient.name }}</h2>
+  <div class="patient-info-grid">
+    <span>HN: <strong>{{ patient.hn }}</strong></span>
+    <span>TB No.: <strong>{{ patient.tb_no }}</strong></span>
+    <span>ชนิด: <strong>{{ patient.tb_type }}</strong></span>
+    <span>น้ำหนัก: <strong>{{ patient.weight }} kg</strong></span>
+  </div>
+  <div class="subheader">{{ month|thai_month }} {{ year }}</div>
 
   {% if doses %}
   <table>
     <thead>
       <tr>
         <th>วันที่</th>
-        {% for drug in all_drugs %}<th>{{ drug }}</th>{% endfor %}
+        {% for drug in all_drugs %}
+        <th class="drug-col">
+          {% if drug in drug_images %}
+          <img class="drug-thumb" src="{{ url_for('static', filename=drug_images[drug]) }}" alt="{{ drug }}">
+          {% endif %}
+          {{ drug }}
+        </th>
+        {% endfor %}
         <th>กินแล้ว ✓</th>
       </tr>
     </thead>
