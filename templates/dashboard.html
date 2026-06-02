@@ -43,47 +43,47 @@
 </div>
 
 {# ---------- Summary cards ---------- #}
-<div class="row mb-4">
-  <div class="col-md-3 mb-2">
-    <div class="card text-center">
-      <div class="card-body">
+<div class="row row-cols-2 row-cols-md-5 g-2 mb-4">
+  <div class="col">
+    <div class="card text-center h-100">
+      <div class="card-body py-3">
         <h2 class="mb-0">{{ total_patients }}</h2>
         <small class="text-muted">ผู้ป่วยทั้งหมด</small>
       </div>
     </div>
   </div>
-  <div class="col-md-3 mb-2">
-    <div class="card text-center border-danger">
-      <div class="card-body">
+  <div class="col">
+    <div class="card text-center border-danger h-100">
+      <div class="card-body py-3">
         <h2 class="mb-0 text-danger">{{ total_overdue }}</h2>
-        <small class="text-muted">โดสค้างรวม (ทุกราย)</small>
+        <small class="text-muted">โดสค้างรวม</small>
       </div>
     </div>
   </div>
-  <div class="col-md-3 mb-2">
-    <div class="card text-center border-success">
-      <div class="card-body">
+  <div class="col">
+    <div class="card text-center border-success h-100">
+      <div class="card-body py-3">
         {% set good = rows|selectattr('stats.adherence_pct', 'ge', 90)|list|length %}
         <h2 class="mb-0 text-success">{{ good }}</h2>
         <small class="text-muted">สม่ำเสมอ (&ge;90%)</small>
       </div>
     </div>
   </div>
-  <div class="col-md-3 mb-2">
-    <div class="card text-center border-warning">
-      <div class="card-body">
+  <div class="col">
+    <div class="card text-center border-warning h-100">
+      <div class="card-body py-3">
         {% set risk = rows|selectattr('stats.adherence_pct', 'lt', 70)|list|length %}
         <h2 class="mb-0 text-warning">{{ risk }}</h2>
         <small class="text-muted">เสี่ยงขาดยา (&lt;70%)</small>
       </div>
     </div>
   </div>
-  <div class="col-md-3 mb-2">
-    <div class="card text-center border-success">
-      <div class="card-body">
+  <div class="col">
+    <div class="card text-center border-success h-100">
+      <div class="card-body py-3">
         {% set cured = rows|selectattr('patient.outcome', 'in', ['cured','completed'])|list|length %}
         <h2 class="mb-0 text-success">{{ cured }}</h2>
-        <small class="text-muted">รักษาสำเร็จ (cured/completed)</small>
+        <small class="text-muted">รักษาสำเร็จ</small>
       </div>
     </div>
   </div>

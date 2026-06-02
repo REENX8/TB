@@ -505,10 +505,14 @@ def print_schedule(id: int):
         MedicationDose.date <= date(year, month, last_day),
     ).order_by(MedicationDose.date).all()
     all_drugs = list(dict.fromkeys(k for d in doses for k in d.medications))
+    prev_year, prev_month = (year - 1, 12) if month == 1 else (year, month - 1)
+    next_year, next_month = (year + 1, 1) if month == 12 else (year, month + 1)
     return render_template(
         "print_schedule.html",
         patient=patient, doses=doses, all_drugs=all_drugs,
         year=year, month=month, today=today,
+        prev_year=prev_year, prev_month=prev_month,
+        next_year=next_year, next_month=next_month,
     )
 
 
