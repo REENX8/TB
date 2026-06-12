@@ -40,6 +40,25 @@ def test_audit_log_created_on_key_actions(
     assert log is not None, f"Expected audit log for {action_name}"
 
 
+def test_audit_failure_rolls_back_and_does_not_raise(app, monkeypatch):
+    from tb.audit import log_audit
+    from tb.extensions import db
+
+    rolled_back = {"called": False}
+
+    def _raise():
+        raise RuntimeError("commit failed")
+
+    def _rollback():
+        rolled_back["called"] = True
+
+    monkeypatch.setattr(db.session, "commit", _raise)
+    monkeypatch.setattr(db.session, "rollback", _rollback)
+    with app.test_request_context("/"):
+        log_audit("TEST_ACTION")  # must not raise
+    assert rolled_back["called"] is True
+
+
 def test_audit_log_view_filters_by_action(staff_client, make_patient):
     patient = make_patient()
     staff_client.post(f"/patient/{patient.id}/archive")

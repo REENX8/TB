@@ -23,10 +23,10 @@ from tb.constants import OUTCOME_LABELS
 from tb.extensions import db
 from tb.models import MedicationDose, Patient
 from tb.qr_utils import make_patient_token
-from tb.regimen import calculate_regimen, parse_count
+from tb.regimen import calculate_regimen, parse_drug_form
 from tb.schedule import build_calendar, generate_schedule
 from tb.security import staff_required
-from tb.time_utils import today_th
+from tb.time_utils import safe_year_month, today_th
 
 bp = Blueprint("patient", __name__)
 
@@ -103,16 +103,10 @@ def new_patient():
         db.session.commit()
 
         if use_custom:
-            custom = {}
-            drug_names = request.form.getlist("drug_name")
-            drug_counts = request.form.getlist("drug_count")
-            for dname, dcount in zip(drug_names, drug_counts):
-                dname = dname.strip()
-                if dname and dcount.strip():
-                    try:
-                        custom[dname] = parse_count(dcount)
-                    except ValueError:
-                        pass
+            custom = parse_drug_form(
+                request.form.getlist("drug_name"),
+                request.form.getlist("drug_count"),
+            )
             if not custom:
                 flash("กรุณาระบุยาอย่างน้อย 1 รายการ", "danger")
                 db.session.delete(patient)
@@ -135,11 +129,9 @@ def view_patient(id: int):
     patient = db.get_or_404(Patient, id)
     today = today_th()
 
-    try:
-        cal_year = int(request.args.get("year", today.year))
-        cal_month = int(request.args.get("month", today.month))
-    except ValueError:
-        cal_year, cal_month = today.year, today.month
+    cal_year, cal_month = safe_year_month(
+        request.args.get("year"), request.args.get("month"), today
+    )
 
     calendar = build_calendar(patient, cal_year, cal_month)
 
@@ -298,16 +290,10 @@ def extend_schedule(id: int):
 
             use_custom = request.form.get("use_custom_meds") == "on"
             if use_custom:
-                regimen = {}
-                drug_names = request.form.getlist("drug_name")
-                drug_counts = request.form.getlist("drug_count")
-                for dname, dcount in zip(drug_names, drug_counts):
-                    dname = dname.strip()
-                    if dname and dcount.strip():
-                        try:
-                            regimen[dname] = parse_count(dcount)
-                        except ValueError:
-                            pass
+                regimen = parse_drug_form(
+                    request.form.getlist("drug_name"),
+                    request.form.getlist("drug_count"),
+                )
                 if not regimen:
                     regimen = current_meds
             else:
@@ -368,16 +354,10 @@ def extend_schedule(id: int):
             flash(f"ลด {actual} วันออกจากตารางยาแล้ว", "success")
 
         elif action == "update_future":
-            regimen = {}
-            drug_names = request.form.getlist("drug_name")
-            drug_counts = request.form.getlist("drug_count")
-            for dname, dcount in zip(drug_names, drug_counts):
-                dname = dname.strip()
-                if dname and dcount.strip():
-                    try:
-                        regimen[dname] = parse_count(dcount)
-                    except ValueError:
-                        pass
+            regimen = parse_drug_form(
+                request.form.getlist("drug_name"),
+                request.form.getlist("drug_count"),
+            )
             if regimen:
                 today = today_th()
                 updated = db.session.execute(
@@ -496,8 +476,9 @@ def export_csv(id: int):
 def print_schedule(id: int):
     patient = db.get_or_404(Patient, id)
     today = today_th()
-    year = request.args.get("year", today.year, type=int)
-    month = request.args.get("month", today.month, type=int)
+    year, month = safe_year_month(
+        request.args.get("year"), request.args.get("month"), today
+    )
     _, last_day = monthrange(year, month)
     doses = MedicationDose.query.filter(
         MedicationDose.patient_id == id,

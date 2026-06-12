@@ -38,6 +38,28 @@ def reset_login_state() -> None:
     _login_attempts.clear()
 
 
+_rate_buckets: dict[str, list[float]] = defaultdict(list)
+
+
+def is_rate_limited(key: str, max_requests: int, window_seconds: int) -> bool:
+    """Sliding-window rate limiter (in-memory, per worker process).
+
+    Records the request and returns True when the caller should be rejected.
+    """
+    now = time.time()
+    bucket = [t for t in _rate_buckets[key] if now - t < window_seconds]
+    limited = len(bucket) >= max_requests
+    if not limited:
+        bucket.append(now)
+    _rate_buckets[key] = bucket
+    return limited
+
+
+def reset_rate_limits() -> None:
+    """Used by tests to reset in-memory rate limiter state."""
+    _rate_buckets.clear()
+
+
 def load_staff_accounts() -> dict[str, str]:
     """Read staff accounts from env vars.
 

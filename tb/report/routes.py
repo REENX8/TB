@@ -10,7 +10,7 @@ import openpyxl
 from flask import Blueprint, render_template, request, send_file
 from openpyxl.styles import Font, PatternFill
 from sqlalchemy import case as sa_case
-from sqlalchemy import func
+from sqlalchemy import func, text
 
 from tb.adherence import (
     get_adherence_stats_bulk,
@@ -22,7 +22,7 @@ from tb.constants import OUTCOME_LABELS
 from tb.extensions import db
 from tb.models import MedicationDose, Patient
 from tb.security import staff_required
-from tb.time_utils import today_th
+from tb.time_utils import safe_year_month, today_th
 
 bp = Blueprint("report", __name__)
 
@@ -71,8 +71,9 @@ def dashboard():
 @staff_required
 def report():
     today = today_th()
-    year = request.args.get("year", today.year, type=int)
-    month = request.args.get("month", today.month, type=int)
+    year, month = safe_year_month(
+        request.args.get("year"), request.args.get("month"), today
+    )
     _, last_day = monthrange(year, month)
     first = date(year, month, 1)
     last = date(year, month, last_day)
@@ -133,8 +134,9 @@ def report():
 @staff_required
 def report_export():
     today = today_th()
-    year = request.args.get("year", today.year, type=int)
-    month = request.args.get("month", today.month, type=int)
+    year, month = safe_year_month(
+        request.args.get("year"), request.args.get("month"), today
+    )
     _, last_day = monthrange(year, month)
     first = date(year, month, 1)
     last = date(year, month, last_day)
@@ -182,8 +184,9 @@ def report_export():
 @staff_required
 def report_export_xlsx():
     today = today_th()
-    year = request.args.get("year", today.year, type=int)
-    month = request.args.get("month", today.month, type=int)
+    year, month = safe_year_month(
+        request.args.get("year"), request.args.get("month"), today
+    )
     _, last_day = monthrange(year, month)
     first = date(year, month, 1)
     last = date(year, month, last_day)
@@ -278,4 +281,8 @@ def dashboard_at_risk():
 
 @bp.route("/ping")
 def ping():
+    try:
+        db.session.execute(text("SELECT 1"))
+    except Exception:
+        return "db unavailable", 503
     return "ok", 200

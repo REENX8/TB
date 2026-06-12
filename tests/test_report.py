@@ -35,6 +35,25 @@ def test_ping_endpoint_is_open(client):
     assert resp.data == b"ok"
 
 
+def test_ping_returns_503_when_db_down(client, monkeypatch):
+    from tb.extensions import db
+
+    def _raise(*args, **kwargs):
+        raise RuntimeError("db down")
+
+    monkeypatch.setattr(db.session, "execute", _raise)
+    resp = client.get("/ping")
+    assert resp.status_code == 503
+
+
+def test_report_invalid_month_falls_back_to_today(staff_client, make_patient, frozen_today):
+    make_patient(hn="RP2", start_date=frozen_today)
+    resp = staff_client.get("/report?year=999999&month=13")
+    assert resp.status_code == 200
+    resp = staff_client.get("/report?year=abc&month=xyz")
+    assert resp.status_code == 200
+
+
 def test_extend_schedule_add_days(staff_client, make_patient):
     from tb.extensions import db
     from tb.models import MedicationDose
