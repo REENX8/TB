@@ -56,7 +56,8 @@ def test_edit_dose_updates_medications(staff_client, make_patient):
     db.session.expire_all()
     refreshed = db.session.get(MedicationDose, dose.id)
     meds = json.loads(refreshed.medications_json)
-    assert meds == {"INH 100mg": 5, "Custom Med": 2}
+    # Unknown drug names are ignored (whitelisted against DRUG_IMAGES).
+    assert meds == {"INH 100mg": 5}
 
 
 def test_mark_dose_twice_is_idempotent(staff_client, make_patient):

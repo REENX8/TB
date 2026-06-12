@@ -10,10 +10,13 @@ from tb.adherence import get_adherence_stats
 from tb.extensions import csrf, db
 from tb.models import MedicationDose, Patient
 from tb.qr_utils import create_qr_code
-from tb.security import staff_required
+from tb.security import is_rate_limited, staff_required
 from tb.time_utils import TZ_THAI, today_th
 
 bp = Blueprint("scan", __name__)
+
+SCAN_RATE_LIMIT = 30  # requests per IP
+SCAN_RATE_WINDOW = 60  # seconds
 
 
 @bp.route("/qr/patient/<int:patient_id>.png")
@@ -41,6 +44,11 @@ def qr_code_page(patient_id: int):
 @csrf.exempt
 def scan_patient(token: str):
     """Mobile page opened when patient scans their QR code."""
+    if is_rate_limited(
+        f"scan:{request.remote_addr}", SCAN_RATE_LIMIT, SCAN_RATE_WINDOW
+    ):
+        return "คำขอมากเกินไป กรุณารอสักครู่", 429
+
     patient = Patient.query.filter_by(scan_token=token).first_or_404()
     today = today_th()
 
@@ -53,10 +61,21 @@ def scan_patient(token: str):
         last_ts = session.get(cooldown_key, 0)
         now_ts = datetime.now(TZ_THAI).timestamp()
         if now_ts - last_ts >= 30:
-            today_dose.taken = True
-            today_dose.taken_time = datetime.now(TZ_THAI).replace(tzinfo=None)
+            # Atomic conditional UPDATE so concurrent confirms cannot
+            # double-mark or overwrite taken_time.
+            updated = db.session.query(MedicationDose).filter(
+                MedicationDose.id == today_dose.id,
+                MedicationDose.taken == False,  # noqa: E712
+            ).update(
+                {
+                    "taken": True,
+                    "taken_time": datetime.now(TZ_THAI).replace(tzinfo=None),
+                },
+                synchronize_session=False,
+            )
             db.session.commit()
-            session[cooldown_key] = now_ts
+            if updated:
+                session[cooldown_key] = now_ts
         return redirect(url_for("scan_patient", token=token))
 
     stats = get_adherence_stats(patient)

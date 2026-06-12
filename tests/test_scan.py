@@ -57,6 +57,40 @@ def test_scan_rate_limit_30s_cooldown(client, make_patient, frozen_today):
     assert first_time is not None
 
 
+def test_scan_double_post_keeps_first_taken_time(client, make_patient, frozen_today):
+    from tb.extensions import db
+    from tb.models import MedicationDose
+
+    patient = make_patient(start_date=frozen_today, days=10)
+    client.post(f"/scan/{patient.scan_token}")
+    dose = db.session.query(MedicationDose).filter_by(
+        patient_id=patient.id, date=frozen_today
+    ).first()
+    first_time = dose.taken_time
+    assert first_time is not None
+
+    # Second confirm must not overwrite the original timestamp.
+    client.post(f"/scan/{patient.scan_token}")
+    db.session.expire_all()
+    refreshed = db.session.get(MedicationDose, dose.id)
+    assert refreshed.taken is True
+    assert refreshed.taken_time == first_time
+
+
+def test_scan_per_ip_rate_limit_returns_429(client, make_patient, frozen_today):
+    from tb.scan.routes import SCAN_RATE_LIMIT
+    from tb.security import reset_rate_limits
+
+    patient = make_patient(start_date=frozen_today, days=10)
+    reset_rate_limits()
+    for _ in range(SCAN_RATE_LIMIT):
+        resp = client.get(f"/scan/{patient.scan_token}")
+        assert resp.status_code == 200
+    resp = client.get(f"/scan/{patient.scan_token}")
+    assert resp.status_code == 429
+    reset_rate_limits()
+
+
 def test_regenerate_token_invalidates_old_scan_url(staff_client, client, make_patient):
     from tb.extensions import db
     from tb.models import Patient

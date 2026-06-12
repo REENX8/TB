@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from flask import session
+from flask import current_app, session
 
 from tb.extensions import db
 from tb.models import AuditLog
@@ -23,5 +23,9 @@ def log_audit(action: str, patient=None, detail: str | None = None) -> None:
         )
         db.session.add(entry)
         db.session.commit()
-    except Exception as e:
-        print("Audit log error:", e)
+    except Exception:
+        # Callers commit their own work before logging, so rolling back
+        # here cannot discard their changes — it only clears the broken
+        # session state left by the failed audit insert.
+        db.session.rollback()
+        current_app.logger.exception("Audit log write failed (action=%s)", action)

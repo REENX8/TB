@@ -25,12 +25,13 @@ def _staff_env():
 def app(_staff_env):
     from tb import create_app
     from tb.extensions import db
-    from tb.security import reset_login_state
+    from tb.security import reset_login_state, reset_rate_limits
 
     app = create_app("tb.config.TestConfig")
     with app.app_context():
         db.create_all()
         reset_login_state()
+        reset_rate_limits()
         yield app
         db.session.remove()
         db.drop_all()

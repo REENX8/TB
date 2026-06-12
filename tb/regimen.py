@@ -1,11 +1,27 @@
 """Medication regimen calculation per Thai TB Guidelines."""
 from __future__ import annotations
 
+from tb.constants import DRUG_IMAGES
+
 
 def parse_count(value: str):
     """Parse tablet count; returns int for whole numbers, float for halves (e.g. 1.5)."""
     v = float(value)
     return int(v) if v == int(v) else v
+
+
+def parse_drug_form(names: list[str], counts: list[str]) -> dict:
+    """Build a regimen dict from form inputs, keeping only known drugs."""
+    regimen: dict = {}
+    for dname, dcount in zip(names, counts):
+        dname = dname.strip()
+        if dname not in DRUG_IMAGES or not dcount.strip():
+            continue
+        try:
+            regimen[dname] = parse_count(dcount)
+        except ValueError:
+            pass
+    return regimen
 
 
 def calculate_regimen(weight: float) -> dict:
