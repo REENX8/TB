@@ -112,9 +112,14 @@ def reset_password(id: int):
 @bp.route("/password", methods=["GET", "POST"])
 @staff_required
 def change_own_password():
-    account = StaffAccount.query.filter_by(
-        username=session.get("staff_user")
-    ).first()
+    try:
+        account = StaffAccount.query.filter_by(
+            username=session.get("staff_user")
+        ).first()
+    except Exception:
+        # Table missing pre-migration: behave like an env-only account.
+        db.session.rollback()
+        account = None
     if request.method == "POST":
         if account is None:
             flash(
