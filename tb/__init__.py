@@ -67,6 +67,15 @@ def create_app(config_object: str | None = None) -> Flask:
         config_object = os.environ.get("TB_CONFIG", "tb.config.ProdConfig")
     app.config.from_object(config_object)
 
+    if (
+        not app.config.get("DEBUG")
+        and not app.config.get("TESTING")
+        and not app.config.get("SECRET_KEY")
+    ):
+        raise RuntimeError(
+            "SECRET_KEY environment variable is required in production"
+        )
+
     db.init_app(app)
     csrf.init_app(app)
     migrate.init_app(app, db)
@@ -77,8 +86,13 @@ def create_app(config_object: str | None = None) -> Flask:
     from tb.patient.routes import bp as patient_bp
     from tb.report.routes import bp as report_bp
     from tb.scan.routes import bp as scan_bp
+    from tb.staff_admin.routes import bp as staff_admin_bp
+    from tb.symptom.routes import bp as symptom_bp
 
-    for bp in (auth_bp, patient_bp, dose_bp, scan_bp, report_bp, audit_bp):
+    for bp in (
+        auth_bp, patient_bp, dose_bp, scan_bp, report_bp, audit_bp,
+        staff_admin_bp, symptom_bp,
+    ):
         app.register_blueprint(bp)
 
     from tb.template_helpers import register as register_template_helpers

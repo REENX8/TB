@@ -8,7 +8,7 @@ from flask import Blueprint, flash, redirect, render_template, request, url_for
 from tb.audit import log_audit
 from tb.extensions import db
 from tb.models import MedicationDose, Patient
-from tb.regimen import parse_count
+from tb.regimen import parse_drug_form
 from tb.security import staff_required
 from tb.time_utils import TZ_THAI
 
@@ -64,15 +64,10 @@ def edit_dose(id: int, dose_id: int):
         stop = request.form.get("stop_meds")
         new_meds: dict = {}
         if not stop:
-            drug_names = request.form.getlist("drug_name")
-            drug_counts = request.form.getlist("drug_count")
-            for dname, dcount in zip(drug_names, drug_counts):
-                dname = dname.strip()
-                if dname and dcount.strip():
-                    try:
-                        new_meds[dname] = parse_count(dcount)
-                    except ValueError:
-                        pass
+            new_meds = parse_drug_form(
+                request.form.getlist("drug_name"),
+                request.form.getlist("drug_count"),
+            )
             if not new_meds:
                 flash("กรุณาระบุยาอย่างน้อย 1 รายการ", "danger")
                 return render_template("edit_dose.html", patient=patient, dose=dose)

@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0">จัดการบัญชีเจ้าหน้าที่</h4>
+  <a class="btn btn-primary" href="{{ url_for('staff_admin.new_staff') }}">+ เพิ่มบัญชี</a>
+</div>
+
+{% if accounts %}
+<div class="table-responsive">
+  <table class="table table-hover align-middle">
+    <thead>
+      <tr>
+        <th>ชื่อผู้ใช้</th>
+        <th>บทบาท</th>
+        <th>สถานะ</th>
+        <th>เข้าสู่ระบบล่าสุด</th>
+        <th>สร้างเมื่อ</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for acct in accounts %}
+      <tr>
+        <td>{{ acct.username }}</td>
+        <td><span class="badge bg-secondary">{{ staff_roles.get(acct.role, acct.role) }}</span></td>
+        <td>
+          {% if acct.is_active %}
+          <span class="badge bg-success">ใช้งาน</span>
+          {% else %}
+          <span class="badge bg-danger">ปิดใช้งาน</span>
+          {% endif %}
+        </td>
+        <td>{{ format_datetime(acct.last_login) or "—" }}</td>
+        <td>{{ format_date(acct.created_at) }}</td>
+        <td class="text-end">
+          <a class="btn btn-sm btn-outline-primary" href="{{ url_for('staff_admin.edit_staff', id=acct.id) }}">แก้ไข</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="alert alert-info">
+  ยังไม่มีบัญชีในระบบ — บัญชีที่ตั้งค่าผ่าน environment variables ยังใช้เข้าสู่ระบบได้ (สิทธิ์ผู้ดูแลระบบ)
+</div>
+{% endif %}
+{% endblock %}

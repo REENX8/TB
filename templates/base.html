@@ -76,13 +76,29 @@
               <a class="nav-link {% if request.path.startswith('/report') %}active{% endif %}" href="{{ url_for('report') }}">รายงาน</a>
             </li>
             <li class="nav-item">
+              <a class="nav-link {% if request.path.startswith('/symptoms') %}active{% endif %}" href="{{ url_for('symptom.list_symptoms') }}">
+                อาการผู้ป่วย
+                {% if new_symptom_count and new_symptom_count > 0 %}
+                <span class="badge bg-danger">{{ new_symptom_count }}</span>
+                {% endif %}
+              </a>
+            </li>
+            <li class="nav-item">
               <a class="nav-link {% if request.path.startswith('/audit') %}active{% endif %}" href="{{ url_for('audit_log') }}">Audit Log</a>
             </li>
           </ul>
           <ul class="navbar-nav">
             {% if session.get('staff_logged_in') %}
+            {% if session.get('staff_role', 'admin') == 'admin' %}
+            <li class="nav-item">
+              <a class="nav-link {% if request.path.startswith('/staff') %}active{% endif %}" href="{{ url_for('staff_admin.list_staff') }}">จัดการผู้ใช้</a>
+            </li>
+            {% endif %}
             <li class="nav-item">
               <span class="nav-link text-light opacity-75">{{ session.get('staff_user') }}</span>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="{{ url_for('staff_admin.change_own_password') }}">เปลี่ยนรหัสผ่าน</a>
             </li>
             <li class="nav-item">
               <a class="nav-link" href="{{ url_for('staff_logout') }}">ออกจากระบบ</a>

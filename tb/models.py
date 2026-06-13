@@ -27,6 +27,9 @@ class Patient(db.Model):
     doses = db.relationship(
         "MedicationDose", backref="patient", cascade="all, delete-orphan"
     )
+    symptom_reports = db.relationship(
+        "SymptomReport", backref="patient", cascade="all, delete-orphan"
+    )
 
     def __repr__(self) -> str:
         return f"<Patient {self.id} {self.name}>"
@@ -58,6 +61,50 @@ class MedicationDose(db.Model):
 
     def __repr__(self) -> str:
         return f"<Dose {self.id} {self.date} taken={self.taken}>"
+
+
+class SymptomReport(db.Model):
+    __tablename__ = "symptom_reports"
+    id = db.Column(db.Integer, primary_key=True)
+    patient_id = db.Column(
+        db.Integer, db.ForeignKey("patients.id"), nullable=False
+    )
+    reported_at = db.Column(
+        db.DateTime, nullable=False,
+        default=lambda: datetime.now(TZ_THAI).replace(tzinfo=None),
+    )
+    category = db.Column(db.String(40), nullable=False)
+    detail = db.Column(db.Text, nullable=True)
+    auto_response = db.Column(db.Text, nullable=True)
+    status = db.Column(db.String(20), nullable=False, default="new")
+    pharmacist_reply = db.Column(db.Text, nullable=True)
+    replied_by = db.Column(db.String(60), nullable=True)
+    replied_at = db.Column(db.DateTime, nullable=True)
+
+    __table_args__ = (
+        db.Index("ix_symptom_patient_reported", "patient_id", "reported_at"),
+        db.Index("ix_symptom_status", "status"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<SymptomReport {self.id} {self.category} ({self.status})>"
+
+
+class StaffAccount(db.Model):
+    __tablename__ = "staff_accounts"
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(60), unique=True, nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
+    role = db.Column(db.String(20), nullable=False, default="nurse")
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(
+        db.DateTime, nullable=False,
+        default=lambda: datetime.now(TZ_THAI).replace(tzinfo=None),
+    )
+    last_login = db.Column(db.DateTime, nullable=True)
+
+    def __repr__(self) -> str:
+        return f"<StaffAccount {self.id} {self.username} ({self.role})>"
 
 
 class AuditLog(db.Model):

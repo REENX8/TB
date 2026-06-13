@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0">การแจ้งอาการไม่พึงประสงค์</h4>
+  <form method="get" class="d-flex gap-2">
+    <select class="form-select form-select-sm" name="status" onchange="this.form.submit()">
+      <option value="" {% if not status %}selected{% endif %}>ใหม่ + ตอบแล้ว</option>
+      {% for key, label in status_labels.items() %}
+      <option value="{{ key }}" {% if status == key %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </form>
+</div>
+
+{% if reports %}
+{% for report in reports %}
+{% set info = symptom_categories.get(report.category) %}
+<div class="card mb-3 {% if info and info.severe %}border-danger{% endif %}">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+      <div>
+        <span class="fw-bold">{{ info.label if info else report.category }}</span>
+        {% if info and info.severe %}<span class="badge bg-danger ms-1">รุนแรง</span>{% endif %}
+        <span class="badge {% if report.status == 'new' %}bg-danger{% elif report.status == 'replied' %}bg-warning text-dark{% else %}bg-secondary{% endif %} ms-1">
+          {{ status_labels.get(report.status, report.status) }}
+        </span>
+        <div class="text-muted small mt-1">
+          ผู้ป่วย:
+          <a href="{{ url_for('view_patient', id=report.patient.id) }}">
+            {{ report.patient.name }} (HN: {{ report.patient.hn }})
+          </a>
+          — แจ้งเมื่อ {{ format_datetime(report.reported_at) }}
+        </div>
+      </div>
+    </div>
+    {% if report.detail %}
+    <p class="mb-1 mt-2"><strong>รายละเอียด:</strong> {{ report.detail }}</p>
+    {% endif %}
+    {% if report.pharmacist_reply %}
+    <div class="alert alert-success py-2 px-3 mt-2 mb-2">
+      <strong>ตอบโดย {{ report.replied_by }} ({{ format_datetime(report.replied_at) }}):</strong><br>
+      {{ report.pharmacist_reply }}
+    </div>
+    {% endif %}
+    <div class="d-flex gap-2 mt-2 flex-wrap">
+      {% if session.get('staff_role', 'admin') in ('admin', 'pharmacist') %}
+      <form method="post" action="{{ url_for('symptom.reply_symptom', id=report.id) }}" class="d-flex gap-2 flex-grow-1">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="text" class="form-control form-control-sm" name="reply"
+               placeholder="ตอบกลับผู้ป่วย..." required>
+        <button type="submit" class="btn btn-sm btn-primary text-nowrap">ตอบกลับ</button>
+      </form>
+      {% endif %}
+      {% if report.status != 'resolved' %}
+      <form method="post" action="{{ url_for('symptom.resolve_symptom', id=report.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-sm btn-outline-secondary">ปิดเรื่อง</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endfor %}
+
+{% if pagination.pages > 1 %}
+<nav>
+  <ul class="pagination">
+    {% for p in pagination.iter_pages() %}
+    {% if p %}
+    <li class="page-item {% if p == pagination.page %}active{% endif %}">
+      <a class="page-link" href="{{ url_for('symptom.list_symptoms', page=p, status=status) }}">{{ p }}</a>
+    </li>
+    {% else %}
+    <li class="page-item disabled"><span class="page-link">…</span></li>
+    {% endif %}
+    {% endfor %}
+  </ul>
+</nav>
+{% endif %}
+
+{% else %}
+<div class="alert alert-info">ไม่มีรายการแจ้งอาการ</div>
+{% endif %}
+{% endblock %}

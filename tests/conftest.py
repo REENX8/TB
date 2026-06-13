@@ -25,12 +25,13 @@ def _staff_env():
 def app(_staff_env):
     from tb import create_app
     from tb.extensions import db
-    from tb.security import reset_login_state
+    from tb.security import reset_login_state, reset_rate_limits
 
     app = create_app("tb.config.TestConfig")
     with app.app_context():
         db.create_all()
         reset_login_state()
+        reset_rate_limits()
         yield app
         db.session.remove()
         db.drop_all()
@@ -48,6 +49,49 @@ def staff_client(app, client):
         sess["staff_logged_in"] = True
         sess["staff_user"] = TEST_USERNAME
     return client
+
+
+@pytest.fixture()
+def make_staff(app):
+    """Factory that creates a database StaffAccount."""
+    from tb.extensions import db
+    from tb.models import StaffAccount
+
+    def _make(username="dbstaff", password="password123", role="nurse", is_active=True):
+        account = StaffAccount(
+            username=username,
+            password_hash=generate_password_hash(password),
+            role=role,
+            is_active=is_active,
+        )
+        db.session.add(account)
+        db.session.commit()
+        return account
+
+    return _make
+
+
+def _role_client(client, username, role):
+    with client.session_transaction() as sess:
+        sess["staff_logged_in"] = True
+        sess["staff_user"] = username
+        sess["staff_role"] = role
+    return client
+
+
+@pytest.fixture()
+def admin_client(app, client):
+    return _role_client(client, "admin_user", "admin")
+
+
+@pytest.fixture()
+def pharmacist_client(app, client):
+    return _role_client(client, "pharm_user", "pharmacist")
+
+
+@pytest.fixture()
+def nurse_client(app, client):
+    return _role_client(client, "nurse_user", "nurse")
 
 
 @pytest.fixture()
