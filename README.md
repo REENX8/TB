@@ -63,6 +63,24 @@ pytest --cov=tb
 | `STAFF_USER_2` | `DEFG` | username account ที่ 2 (optional) |
 | `STAFF_PASS_HASH_2` | `scrypt:...` | password hash account ที่ 2 |
 | `STAFF_USER_3` | `...` | เพิ่ม account ต่อไปได้เรื่อย ๆ |
+| `LINE_CHANNEL_ACCESS_TOKEN` | `...` | (optional) LINE Messaging API — แจ้งอาการไปหาเภสัชกร |
+| `LINE_CHANNEL_SECRET` | `...` | (optional) ใช้ตรวจ signature ของ webhook |
+| `LINE_REGISTER_CODE` | `JOIN-TB` | (optional) รหัสที่เภสัชกรพิมพ์ใน LINE เพื่อลงทะเบียน |
+
+### LINE แจ้งเตือนอาการไม่พึงประสงค์ (optional)
+
+เมื่อตั้งค่า LINE ครบ ระบบจะส่งการแจ้งอาการของผู้ป่วยไปหาเภสัชกรผ่าน LINE:
+
+1. สร้าง **Messaging API channel** ใน [LINE Developers Console](https://developers.line.biz/)
+   คัดลอก **Channel access token** และ **Channel secret** มาใส่ env vars
+2. ตั้ง **Webhook URL** ใน console เป็น `https://<your-domain>/line/webhook` แล้วเปิด Use webhook
+3. ตั้ง `LINE_REGISTER_CODE` เป็นรหัสลับสำหรับลงทะเบียน
+4. **เภสัชกรลงทะเบียน**: แอด LINE Official Account เป็นเพื่อน แล้วพิมพ์รหัส (`LINE_REGISTER_CODE`) ในแชต
+5. เมื่อผู้ป่วยแจ้งอาการในเว็บ เภสัชกรที่ลงทะเบียนจะได้รับข้อความ: ชื่อ, HN, อาการ, และ **เลขรับคำตอบ** (เช่น `A01`)
+6. เภสัชกรตอบกลับใน LINE: พิมพ์ `A01+ข้อความถึงผู้ป่วย` ระบบจะนำคำตอบไปแสดงในหน้าสแกนของผู้ป่วย (ไม่แสดงเลขรับคำตอบ)
+7. พิมพ์ `ยกเลิก` เพื่อเลิกรับการแจ้งเตือน
+
+> ถ้าไม่ตั้งค่า LINE ระบบทำงานปกติทุกอย่าง เพียงแต่ไม่ส่ง LINE — `/line/webhook` จะคืน 404
 
 ### วิธี Generate Password Hash
 
@@ -95,6 +113,11 @@ python -c "from werkzeug.security import generate_password_hash; print(generate_
 | GET | `/qr_page/<id>` | หน้า QR Code | ✓ |
 | GET | `/qr/patient/<id>.png` | รูป QR Code | ✓ |
 | GET/POST | `/scan/<token>` | หน้าสแกน QR (ผู้ป่วย) | - |
+| POST | `/scan/<token>/report` | ผู้ป่วยแจ้งอาการไม่พึงประสงค์ | - |
+| GET | `/symptoms` | รายการแจ้งอาการ (เจ้าหน้าที่) | ✓ |
+| POST | `/symptoms/<id>/reply` | เภสัชกร/admin ตอบกลับ | ✓ |
+| GET | `/staff` | จัดการบัญชีเจ้าหน้าที่ | ✓ (admin) |
+| POST | `/line/webhook` | LINE webhook (ลงทะเบียน + ตอบอาการ) | LINE signature |
 | GET | `/ping` | Health check (uptime monitoring) | - |
 
 ---

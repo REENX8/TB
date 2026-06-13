@@ -23,6 +23,10 @@ class BaseConfig:
     SQLALCHEMY_DATABASE_URI = _normalize_db_url(
         os.environ.get("DATABASE_URL", "sqlite:///tb.db")
     )
+    # LINE Messaging API (optional): symptom-report alerts to pharmacists.
+    LINE_CHANNEL_ACCESS_TOKEN = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN", "")
+    LINE_CHANNEL_SECRET = os.environ.get("LINE_CHANNEL_SECRET", "")
+    LINE_REGISTER_CODE = os.environ.get("LINE_REGISTER_CODE", "")
 
 
 class ProdConfig(BaseConfig):

@@ -19,6 +19,7 @@ from tb.adherence import get_adherence_stats
 from tb.audit import log_audit
 from tb.constants import SYMPTOM_CATEGORIES, SYMPTOM_SEVERE_WARNING
 from tb.extensions import csrf, db
+from tb.line_service import allocate_ticket_code, notify_new_symptom
 from tb.models import MedicationDose, Patient, SymptomReport
 from tb.qr_utils import create_qr_code
 from tb.security import is_rate_limited, staff_required
@@ -162,6 +163,7 @@ def scan_report(token: str):
         category=category,
         detail=detail or None,
         auto_response=build_auto_response(category),
+        ticket_code=allocate_ticket_code(),
     )
     db.session.add(report)
     db.session.commit()
@@ -169,5 +171,7 @@ def scan_report(token: str):
         "SYMPTOM_REPORT", patient=patient,
         detail=SYMPTOM_CATEGORIES[category]["label"],
     )
+    # Best-effort LINE alert to registered pharmacists (no-op if disabled).
+    notify_new_symptom(report)
     flash("บันทึกการแจ้งอาการแล้ว กรุณาอ่านคำแนะนำเบื้องต้นด้านล่าง", "success")
     return redirect(url_for("scan_patient", token=token))

@@ -83,6 +83,7 @@ def create_app(config_object: str | None = None) -> Flask:
     from tb.audit_bp.routes import bp as audit_bp
     from tb.auth.routes import bp as auth_bp
     from tb.dose.routes import bp as dose_bp
+    from tb.line_bp.routes import bp as line_bp
     from tb.patient.routes import bp as patient_bp
     from tb.report.routes import bp as report_bp
     from tb.scan.routes import bp as scan_bp
@@ -91,7 +92,7 @@ def create_app(config_object: str | None = None) -> Flask:
 
     for bp in (
         auth_bp, patient_bp, dose_bp, scan_bp, report_bp, audit_bp,
-        staff_admin_bp, symptom_bp,
+        staff_admin_bp, symptom_bp, line_bp,
     ):
         app.register_blueprint(bp)
 
