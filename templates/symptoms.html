@@ -19,6 +19,7 @@
   <div class="card-body">
     <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
       <div>
+        {% if report.ticket_code %}<span class="badge bg-dark ms-0 me-1">{{ report.ticket_code }}</span>{% endif %}
         <span class="fw-bold">{{ info.label if info else report.category }}</span>
         {% if info and info.severe %}<span class="badge bg-danger ms-1">รุนแรง</span>{% endif %}
         <span class="badge {% if report.status == 'new' %}bg-danger{% elif report.status == 'replied' %}bg-warning text-dark{% else %}bg-secondary{% endif %} ms-1">

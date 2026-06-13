@@ -76,6 +76,9 @@ class SymptomReport(db.Model):
     category = db.Column(db.String(40), nullable=False)
     detail = db.Column(db.Text, nullable=True)
     auto_response = db.Column(db.Text, nullable=True)
+    # Short human-typeable code (e.g. A01) used to route LINE replies back
+    # to this report. Held until the report is resolved, then recyclable.
+    ticket_code = db.Column(db.String(8), nullable=True)
     status = db.Column(db.String(20), nullable=False, default="new")
     pharmacist_reply = db.Column(db.Text, nullable=True)
     replied_by = db.Column(db.String(60), nullable=True)
@@ -84,10 +87,27 @@ class SymptomReport(db.Model):
     __table_args__ = (
         db.Index("ix_symptom_patient_reported", "patient_id", "reported_at"),
         db.Index("ix_symptom_status", "status"),
+        db.Index("ix_symptom_ticket", "ticket_code"),
     )
 
     def __repr__(self) -> str:
         return f"<SymptomReport {self.id} {self.category} ({self.status})>"
+
+
+class LineRecipient(db.Model):
+    """A pharmacist's LINE account registered to receive symptom alerts."""
+    __tablename__ = "line_recipients"
+    id = db.Column(db.Integer, primary_key=True)
+    line_user_id = db.Column(db.String(64), unique=True, nullable=False)
+    display_name = db.Column(db.String(120), nullable=True)
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    registered_at = db.Column(
+        db.DateTime, nullable=False,
+        default=lambda: datetime.now(TZ_THAI).replace(tzinfo=None),
+    )
+
+    def __repr__(self) -> str:
+        return f"<LineRecipient {self.id} {self.display_name or self.line_user_id}>"
 
 
 class StaffAccount(db.Model):
