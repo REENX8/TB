@@ -113,6 +113,11 @@ python -c "from werkzeug.security import generate_password_hash; print(generate_
 > ต้องตั้ง Pre-Deploy Command ใน Render dashboard (Settings → Build & Deploy)
 > ไม่เช่นนั้น migration จะไม่ถูกรันและตารางใหม่จะไม่ถูกสร้าง
 
+> 💡 **ถ้าใช้ Supabase เป็น database**: migration ควรรันผ่าน connection string
+> แบบ **Session (port 5432)** — Transaction Pooler (port 6543) อาจมีปัญหากับ DDL
+> หรือจะรัน SQL สร้างตารางเองใน Supabase SQL Editor ก็ได้
+> (แล้ว stamp เวอร์ชันด้วย `INSERT INTO alembic_version ...`)
+
 ### Migration rollout (เฉพาะครั้งแรกที่อัปเกรดจาก schema เดิม)
 
 สำหรับ production DB ที่สร้างโดย `db.create_all()` + ALTER TABLE เดิม:
