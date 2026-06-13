@@ -60,6 +60,23 @@ class MedicationDose(db.Model):
         return f"<Dose {self.id} {self.date} taken={self.taken}>"
 
 
+class StaffAccount(db.Model):
+    __tablename__ = "staff_accounts"
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(60), unique=True, nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
+    role = db.Column(db.String(20), nullable=False, default="nurse")
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(
+        db.DateTime, nullable=False,
+        default=lambda: datetime.now(TZ_THAI).replace(tzinfo=None),
+    )
+    last_login = db.Column(db.DateTime, nullable=True)
+
+    def __repr__(self) -> str:
+        return f"<StaffAccount {self.id} {self.username} ({self.role})>"
+
+
 class AuditLog(db.Model):
     __tablename__ = "audit_logs"
     id = db.Column(db.Integer, primary_key=True)

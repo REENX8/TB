@@ -1,12 +1,15 @@
 """Authentication routes."""
 from __future__ import annotations
 
+from datetime import datetime
 from urllib.parse import urlparse
 
 from flask import Blueprint, flash, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash
 
 from tb.audit import log_audit
+from tb.extensions import db
+from tb.models import StaffAccount
 from tb.security import (
     LOGIN_LOCKOUT_SECONDS,
     MAX_LOGIN_ATTEMPTS,
@@ -16,8 +19,28 @@ from tb.security import (
     login_attempt_count,
     record_login_failure,
 )
+from tb.time_utils import TZ_THAI
 
 bp = Blueprint("auth", __name__)
+
+
+def _authenticate(username: str, password: str) -> str | None:
+    """Check credentials against DB accounts first, then env accounts.
+
+    Returns the staff role on success, None on failure. Env-var accounts
+    are the bootstrap mechanism and are treated as admin.
+    """
+    account = StaffAccount.query.filter_by(
+        username=username, is_active=True
+    ).first()
+    if account and check_password_hash(account.password_hash, password):
+        account.last_login = datetime.now(TZ_THAI).replace(tzinfo=None)
+        db.session.commit()
+        return account.role
+    env_hash = load_staff_accounts().get(username)
+    if env_hash and check_password_hash(env_hash, password):
+        return "admin"
+    return None
 
 
 @bp.route("/login", methods=["GET", "POST"])
@@ -35,14 +58,14 @@ def staff_login():
             return render_template("login.html")
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
-        accounts = load_staff_accounts()
-        _hash = accounts.get(username)
-        if _hash and check_password_hash(_hash, password):
+        role = _authenticate(username, password)
+        if role is not None:
             clear_login_attempts(ip)
             session.permanent = True
             session["staff_logged_in"] = True
             session["staff_user"] = username
-            log_audit("LOGIN", detail=f"IP: {ip}")
+            session["staff_role"] = role
+            log_audit("LOGIN", detail=f"IP: {ip}, role: {role}")
             flash("เข้าสู่ระบบสำเร็จ", "success")
             next_url = request.args.get("next") or ""
             parsed = urlparse(next_url)
@@ -68,5 +91,6 @@ def staff_logout():
     log_audit("LOGOUT")
     session.pop("staff_logged_in", None)
     session.pop("staff_user", None)
+    session.pop("staff_role", None)
     flash("ออกจากระบบเรียบร้อย", "info")
     return redirect(url_for("index"))

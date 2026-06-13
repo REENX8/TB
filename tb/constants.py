@@ -19,6 +19,12 @@ THAI_MONTHS = [
     "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค.",
 ]
 
+STAFF_ROLES = {
+    "admin": "ผู้ดูแลระบบ",
+    "pharmacist": "เภสัชกร",
+    "nurse": "พยาบาล",
+}
+
 OUTCOME_LABELS = {
     "": "กำลังรักษา",
     "cured": "หาย (Cured)",
