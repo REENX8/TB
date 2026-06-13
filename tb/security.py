@@ -1,12 +1,15 @@
 """Staff authentication helpers and brute-force protection."""
 from __future__ import annotations
 
+import logging
 import os
 import time
 from collections import defaultdict
 from functools import wraps
 
-from flask import redirect, request, session, url_for
+from flask import abort, redirect, request, session, url_for
+
+logger = logging.getLogger(__name__)
 
 _login_attempts: dict[str, list[float]] = defaultdict(list)
 MAX_LOGIN_ATTEMPTS = 5
@@ -65,11 +68,17 @@ def load_staff_accounts() -> dict[str, str]:
 
     Format: STAFF_USER / STAFF_PASS_HASH (primary),
     STAFF_USER_2 / STAFF_PASS_HASH_2, etc.
+
+    Env accounts are the bootstrap mechanism; database StaffAccount rows
+    are the primary mechanism, so missing env vars are not an error.
     """
     primary_user = os.environ.get("STAFF_USER")
     primary_hash = os.environ.get("STAFF_PASS_HASH")
     if not primary_user or not primary_hash:
-        raise RuntimeError("Missing staff credentials")
+        logger.warning(
+            "No env staff credentials configured; relying on database accounts"
+        )
+        return {}
     accounts = {primary_user: primary_hash}
     i = 2
     while True:
@@ -89,3 +98,22 @@ def staff_required(f):
             return redirect(url_for("staff_login", next=request.url))
         return f(*args, **kwargs)
     return decorated
+
+
+def role_required(*roles: str):
+    """Require a logged-in staff member with one of the given roles.
+
+    Sessions created before roles existed have no staff_role; they are
+    treated as admin for backward compatibility (previously every staff
+    session had full access).
+    """
+    def decorator(f):
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            if not session.get("staff_logged_in"):
+                return redirect(url_for("staff_login", next=request.url))
+            if session.get("staff_role", "admin") not in roles:
+                abort(403)
+            return f(*args, **kwargs)
+        return decorated
+    return decorator

@@ -52,6 +52,49 @@ def staff_client(app, client):
 
 
 @pytest.fixture()
+def make_staff(app):
+    """Factory that creates a database StaffAccount."""
+    from tb.extensions import db
+    from tb.models import StaffAccount
+
+    def _make(username="dbstaff", password="password123", role="nurse", is_active=True):
+        account = StaffAccount(
+            username=username,
+            password_hash=generate_password_hash(password),
+            role=role,
+            is_active=is_active,
+        )
+        db.session.add(account)
+        db.session.commit()
+        return account
+
+    return _make
+
+
+def _role_client(client, username, role):
+    with client.session_transaction() as sess:
+        sess["staff_logged_in"] = True
+        sess["staff_user"] = username
+        sess["staff_role"] = role
+    return client
+
+
+@pytest.fixture()
+def admin_client(app, client):
+    return _role_client(client, "admin_user", "admin")
+
+
+@pytest.fixture()
+def pharmacist_client(app, client):
+    return _role_client(client, "pharm_user", "pharmacist")
+
+
+@pytest.fixture()
+def nurse_client(app, client):
+    return _role_client(client, "nurse_user", "nurse")
+
+
+@pytest.fixture()
 def frozen_today(monkeypatch):
     """Freeze today_th() to 2026-04-17 for deterministic adherence tests."""
     fixed = date(2026, 4, 17)

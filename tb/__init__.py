@@ -86,8 +86,12 @@ def create_app(config_object: str | None = None) -> Flask:
     from tb.patient.routes import bp as patient_bp
     from tb.report.routes import bp as report_bp
     from tb.scan.routes import bp as scan_bp
+    from tb.staff_admin.routes import bp as staff_admin_bp
 
-    for bp in (auth_bp, patient_bp, dose_bp, scan_bp, report_bp, audit_bp):
+    for bp in (
+        auth_bp, patient_bp, dose_bp, scan_bp, report_bp, audit_bp,
+        staff_admin_bp,
+    ):
         app.register_blueprint(bp)
 
     from tb.template_helpers import register as register_template_helpers
