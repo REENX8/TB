@@ -76,6 +76,14 @@
               <a class="nav-link {% if request.path.startswith('/report') %}active{% endif %}" href="{{ url_for('report') }}">รายงาน</a>
             </li>
             <li class="nav-item">
+              <a class="nav-link {% if request.path.startswith('/symptoms') %}active{% endif %}" href="{{ url_for('symptom.list_symptoms') }}">
+                อาการผู้ป่วย
+                {% if new_symptom_count and new_symptom_count > 0 %}
+                <span class="badge bg-danger">{{ new_symptom_count }}</span>
+                {% endif %}
+              </a>
+            </li>
+            <li class="nav-item">
               <a class="nav-link {% if request.path.startswith('/audit') %}active{% endif %}" href="{{ url_for('audit_log') }}">Audit Log</a>
             </li>
           </ul>
