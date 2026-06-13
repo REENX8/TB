@@ -118,6 +118,20 @@
       color: #555;
     }
     .overdue-badge { font-size: 0.82rem; }
+    .symptom-block {
+      background: #fff8f0;
+      border-radius: 14px;
+      padding: 14px 16px;
+    }
+    .symptom-option { font-size: 0.92rem; }
+    .report-item {
+      background: #f8f9fa;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 0.85rem;
+      text-align: left;
+    }
+    .report-item .auto-response { white-space: pre-line; }
   </style>
 </head>
 <body>
@@ -128,6 +142,19 @@
       <div class="patient-name">{{ patient.name }}</div>
       <div class="sub">วันที่ {{ today.strftime('%d/%m/%Y') }}</div>
     </div>
+
+    {# ===== Flash messages ===== #}
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div class="px-3 pt-3">
+      {% for category, message in messages %}
+      <div class="alert alert-{{ category if category in ('success','danger','warning','info') else 'info' }} mb-2" role="alert">
+        {{ message }}
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+    {% endwith %}
 
     {% if today_dose and today_dose.taken %}
     {# ===== Already taken ===== #}
@@ -210,6 +237,63 @@
     </div>
     {% endif %}
 
+    {# ===== Symptom reporting ===== #}
+    <div class="px-3 pb-3">
+      <div class="symptom-block">
+        <button class="btn btn-outline-danger w-100 fw-semibold" type="button"
+                data-bs-toggle="collapse" data-bs-target="#symptomForm">
+          🩺 แจ้งอาการไม่พึงประสงค์จากยา
+        </button>
+        <div class="collapse mt-3" id="symptomForm">
+          <form method="post" action="{{ url_for('scan.scan_report', token=patient.scan_token) }}">
+            <p class="mb-2" style="font-size:0.9rem;">เลือกอาการที่พบ:</p>
+            {% for key, info in symptom_categories.items() %}
+            <div class="form-check symptom-option mb-1">
+              <input class="form-check-input" type="radio" name="category"
+                     id="symptom_{{ key }}" value="{{ key }}" required>
+              <label class="form-check-label" for="symptom_{{ key }}">
+                {{ info.label }}{% if info.severe %} ⚠️{% endif %}
+              </label>
+            </div>
+            {% endfor %}
+            <textarea class="form-control mt-2" name="detail" rows="2" maxlength="500"
+                      placeholder="รายละเอียดเพิ่มเติม (ไม่บังคับ)"></textarea>
+            <button type="submit" class="btn btn-danger w-100 mt-2">ส่งรายงานอาการ</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    {# ===== Recent symptom reports ===== #}
+    {% if recent_reports %}
+    <div class="px-3 pb-4">
+      <p class="fw-semibold mb-2" style="font-size:0.95rem;">ประวัติการแจ้งอาการ</p>
+      {% for report in recent_reports %}
+      <div class="report-item mb-2">
+        <div class="d-flex justify-content-between">
+          <span class="fw-semibold">{{ symptom_categories[report.category].label if report.category in symptom_categories else report.category }}</span>
+          <span class="text-muted">{{ report.reported_at.strftime('%d/%m %H:%M') }}</span>
+        </div>
+        {% if report.detail %}
+        <div class="text-muted mt-1">{{ report.detail }}</div>
+        {% endif %}
+        {% if report.auto_response %}
+        <div class="alert {% if report.category in symptom_categories and symptom_categories[report.category].severe %}alert-danger{% else %}alert-info{% endif %} auto-response mt-2 mb-0 py-2 px-2" style="font-size:0.83rem;">
+          {{ report.auto_response }}
+        </div>
+        {% endif %}
+        {% if report.pharmacist_reply %}
+        <div class="alert alert-success mt-2 mb-0 py-2 px-2" style="font-size:0.83rem;">
+          <strong>คำตอบจากเภสัชกร ({{ report.replied_at.strftime('%d/%m %H:%M') if report.replied_at else '' }}):</strong><br>
+          {{ report.pharmacist_reply }}
+        </div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
   </div>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
 </body>
 </html>

@@ -3,10 +3,22 @@ from __future__ import annotations
 
 from datetime import date
 
-from flask import Flask
+from flask import Flask, session
 
 from tb.constants import DRUG_IMAGES, INJECTABLE_DRUGS, THAI_MONTHS
 from tb.time_utils import today_th
+
+
+def _new_symptom_count() -> int:
+    if not session.get("staff_logged_in"):
+        return 0
+    from tb.models import SymptomReport
+
+    try:
+        return SymptomReport.query.filter_by(status="new").count()
+    except Exception:
+        # Table may not exist yet (pre-migration); never break page renders.
+        return 0
 
 
 def register(app: Flask) -> None:
@@ -25,6 +37,7 @@ def register(app: Flask) -> None:
             today_th=today_th,
             drug_images=DRUG_IMAGES,
             injectable_drugs=INJECTABLE_DRUGS,
+            new_symptom_count=_new_symptom_count(),
         )
 
     @app.template_filter("thai_month")
