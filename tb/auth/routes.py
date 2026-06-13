@@ -4,7 +4,16 @@ from __future__ import annotations
 from datetime import datetime
 from urllib.parse import urlparse
 
-from flask import Blueprint, flash, redirect, render_template, request, session, url_for
+from flask import (
+    Blueprint,
+    current_app,
+    flash,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+)
 from werkzeug.security import check_password_hash
 
 from tb.audit import log_audit
@@ -30,9 +39,18 @@ def _authenticate(username: str, password: str) -> str | None:
     Returns the staff role on success, None on failure. Env-var accounts
     are the bootstrap mechanism and are treated as admin.
     """
-    account = StaffAccount.query.filter_by(
-        username=username, is_active=True
-    ).first()
+    try:
+        account = StaffAccount.query.filter_by(
+            username=username, is_active=True
+        ).first()
+    except Exception:
+        # staff_accounts table missing (migration not applied yet) must
+        # not lock staff out — fall back to env accounts.
+        db.session.rollback()
+        current_app.logger.exception(
+            "StaffAccount lookup failed; falling back to env accounts"
+        )
+        account = None
     if account and check_password_hash(account.password_hash, password):
         account.last_login = datetime.now(TZ_THAI).replace(tzinfo=None)
         db.session.commit()
