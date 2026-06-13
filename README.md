@@ -104,9 +104,19 @@ python -c "from werkzeug.security import generate_password_hash; print(generate_
 1. Push repo ขึ้น GitHub
 2. สร้าง Web Service ใหม่บน Render → เลือก repo
 3. Build Command: `pip install -r requirements.txt`
-4. Start Command: `gunicorn wsgi:app`
-5. เพิ่ม Environment Variables ตามตารางด้านบน
-6. เพิ่ม PostgreSQL database → copy URL ใส่ `DATABASE_URL`
+4. **Pre-Deploy Command**: `flask --app wsgi:app db upgrade` ← สำคัญ! รัน migration ทุกครั้งก่อน deploy
+5. Start Command: `gunicorn wsgi:app --workers 2 --threads 2 --timeout 60 --access-logfile -`
+6. เพิ่ม Environment Variables ตามตารางด้านบน
+7. เพิ่ม PostgreSQL database → copy URL ใส่ `DATABASE_URL`
+
+> ⚠️ Render **ไม่อ่าน Procfile** (`release:` เป็นรูปแบบของ Heroku)
+> ต้องตั้ง Pre-Deploy Command ใน Render dashboard (Settings → Build & Deploy)
+> ไม่เช่นนั้น migration จะไม่ถูกรันและตารางใหม่จะไม่ถูกสร้าง
+
+> 💡 **ถ้าใช้ Supabase เป็น database**: migration ควรรันผ่าน connection string
+> แบบ **Session (port 5432)** — Transaction Pooler (port 6543) อาจมีปัญหากับ DDL
+> หรือจะรัน SQL สร้างตารางเองใน Supabase SQL Editor ก็ได้
+> (แล้ว stamp เวอร์ชันด้วย `INSERT INTO alembic_version ...`)
 
 ### Migration rollout (เฉพาะครั้งแรกที่อัปเกรดจาก schema เดิม)
 
@@ -114,10 +124,11 @@ python -c "from werkzeug.security import generate_password_hash; print(generate_
 
 ```bash
 # ครั้งเดียว — mark DB ที่ baseline โดยไม่รัน DDL ซ้ำ
-flask --app wsgi:app db stamp head
+flask --app wsgi:app db stamp 6b70a0d2414e
+flask --app wsgi:app db upgrade
 ```
 
-หลังจากนั้น deploy ได้ปกติ — `Procfile` จะรัน `flask db upgrade` ให้โดยอัตโนมัติ
+หลังจากนั้น deploy ได้ปกติ — Pre-Deploy Command จะรัน `flask db upgrade` ให้ทุกครั้ง
 
 ---
 

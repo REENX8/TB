@@ -171,6 +171,34 @@ def test_change_own_password_wrong_current(client, make_staff):
         assert sess.get("staff_logged_in") is True  # old password still valid
 
 
+def test_env_login_works_when_staff_table_missing(client, app):
+    # Simulates production before the staff_accounts migration ran:
+    # login must fall back to env accounts instead of returning 500.
+    from sqlalchemy import text
+
+    from tb.extensions import db
+
+    db.session.execute(text("DROP TABLE staff_accounts"))
+    db.session.commit()
+
+    resp = client.post(
+        "/login",
+        data={"username": TEST_USERNAME, "password": TEST_PASSWORD},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 302
+    with client.session_transaction() as sess:
+        assert sess["staff_logged_in"] is True
+        assert sess["staff_role"] == "admin"
+
+    # Change-password page must render the env-account warning, not 500.
+    resp = client.get("/staff/password")
+    assert resp.status_code == 200
+
+    # Recreate so fixture teardown's drop_all stays happy.
+    db.create_all()
+
+
 def test_env_account_change_password_shows_warning(staff_client):
     resp = staff_client.get("/staff/password")
     assert resp.status_code == 200
